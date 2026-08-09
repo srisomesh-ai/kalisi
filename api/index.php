@@ -29,7 +29,6 @@ try {
     case 'lookup':    lookup($pdo, $in); break;
     case 'send':      send($pdo, $in); break;
     case 'fetch':     fetchMsgs($pdo, $in); break;
-    case 'reset':     resetAll($pdo, $in); break;
     case 'check':     checkUsername($pdo, $in); break;
     case 'ping':      out(true, ['pong' => time()]); break;
     default:          out(false, ['error' => 'unknown_action']);
@@ -126,15 +125,6 @@ function fetchMsgs(PDO $pdo, array $in): void {
 
   $pdo->prepare('UPDATE k_users SET last_seen = NOW() WHERE kal_id = ?')->execute([$me['kal_id']]);
   out(true, $out);
-}
-
-function resetAll(PDO $pdo, array $in): void {
-  $key = (string)($in['key'] ?? ($_GET['key'] ?? ''));
-  if ($key !== 'kalisi-wipe-9f3ax-2026') out(false, ['error' => 'bad_key']);
-  $pdo->exec('DELETE FROM k_queue');
-  $pdo->exec('DELETE FROM k_receipts');
-  $pdo->exec('DELETE FROM k_users');
-  out(true, ['reset' => true, 'message' => 'Wiped. Now tell Claude to remove the reset endpoint.']);
 }
 
 function checkUsername(PDO $pdo, array $in): void {
