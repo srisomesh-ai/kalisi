@@ -27,6 +27,7 @@ switch ($action) {
   case 'lookup':        lookup($pdo, $in); break;
   case 'send':          send($pdo, $in); break;
   case 'fetch':         fetchMsgs($pdo, $in); break;
+  case 'reset':        resetAll($pdo, $in); break;
   case 'check':        checkUsername($pdo, $in); break;
   case 'ping':          out(true, ['pong' => time()]); break;
   default:              out(false, ['error' => 'unknown_action']);
@@ -120,6 +121,16 @@ function fetchMsgs(PDO $pdo, array $in): void {
 
   $pdo->prepare('UPDATE k_users SET last_seen = NOW() WHERE kal_id = ?')->execute([$me['kal_id']]);
   out(true, $out);
+}
+
+define('RESET_KEY', 'kalisi-wipe-9f3ax-2026');
+function resetAll(PDO $pdo, array $in): void {
+  $key = (string)($in['key'] ?? ($_GET['key'] ?? ''));
+  if (!hash_equals(RESET_KEY, $key)) out(false, ['error' => 'bad_key']);
+  $pdo->exec('DELETE FROM k_queue');
+  $pdo->exec('DELETE FROM k_receipts');
+  $pdo->exec('DELETE FROM k_users');
+  out(true, ['reset' => true, 'message' => 'All Kalisi accounts, messages and receipts wiped. Now DELETE this reset code from api/index.php.']);
 }
 
 function checkUsername(PDO $pdo, array $in): void {
