@@ -102,6 +102,17 @@ async function obCreate(){
   window._keySaved=false;
   $('ob-step1').classList.add('hide');
   $('ob-step2').classList.remove('hide');
+  // App: offer encrypted backup. Web: just enter, no forced download.
+  if(typeof isNativeApp==='function' && isNativeApp()){
+    $('ob-backup-block').classList.remove('hide');
+    $('ob-enter-web').classList.add('hide');
+    const skip=$('ob-skip'); if(skip){ setTimeout(()=>skip.classList.remove('hide'),4000); }
+  } else {
+    $('ob-backup-block').classList.add('hide');
+    $('ob-enter-web').classList.remove('hide');
+    if(me())me().backedUp=true; // web: no nag, treat as fine
+    save();
+  }
 }
 async function obSaveKey(){
   await backupData();               // reuse encrypted backup (passphrase-protected)
@@ -111,15 +122,12 @@ async function obSaveKey(){
     $('ob-savekey').classList.add('hide');
     $('ob-enter-btn').classList.remove('hide');
     $('ob-skip').classList.add('hide');
-    toast('✅ Recovery key saved — tap Enter Kalisi');
+    toast('✅ Backup saved — tap Enter Kalisi');
   }
 }
-function obSkipKey(){
-  if(confirm('Really skip? If this browser is cleared before you save a backup, @'+(me().username||'')+' and all its chats are lost permanently and cannot be recovered by anyone — not even Kalisi.')) obEnter();
-}
+function obSkipKey(){ obEnter(); }
 function obEnter(){
   showApp();
-  if(!window._keySaved) setTimeout(()=>toast('⚠️ No recovery key saved yet — do it soon in Privacy → Save backup'),900);
 }
 
 /* ---------- main shell ---------- */
@@ -148,7 +156,7 @@ function lastMsgPreview(msgs){
   return (m.from==='me'?'You: ':'')+m.text;
 }
 function renderChats(){
-  const nag=$('backup-nag'); if(nag){ const m=me(); nag.classList.toggle('hide', !m||!m.token||!!m.backedUp); }
+  const nag=$('backup-nag'); if(nag){ const m=me(); const isApp=(typeof isNativeApp==='function'&&isNativeApp()); nag.classList.toggle('hide', !isApp||!m||!m.token||!!m.backedUp); }
   const q=($('chat-search').value||'').toLowerCase();
   const list=$('chat-list'); list.innerHTML='';
   const rows=D().contacts
