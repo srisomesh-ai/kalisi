@@ -163,7 +163,7 @@ function renderChats(){
     row.innerHTML=`${avatarHTML(c)}
       <div class="chat-mid">
         <div class="chat-name">${esc(c.name)} ${c.verified?'<span class="vtag">TEAM</span>':''}${c.idChanged?'<span class="vtag" style="color:var(--ember);border-color:rgba(228,87,63,.45)">ID CHANGED</span>':''}</div>
-        <div class="chat-last">${esc(lastMsgPreview(ch.msgs))}</div>
+        <div class="chat-last">${esc(maskingOn()?maskSensitive(lastMsgPreview(ch.msgs)):lastMsgPreview(ch.msgs))}</div>
       </div>
       <div class="chat-side">
         <div class="chat-time">${last?fmtTime(last.ts):''}</div>

@@ -19,7 +19,7 @@ async function refreshRequests(){
       if(typeof notifyIncoming==='function')notifyIncoming('New contact request','@'+(latest.username||latest.name||'')+' wants to connect');
     }
     window._reqReady=true;
-    if($('pane-connect')?.classList.contains('on'))renderConnect();
+    if($('pane-connect')?.classList.contains('on'))renderRequestsInbox();
     renderChats();
   }catch(e){}
 }
