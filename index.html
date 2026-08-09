@@ -348,6 +348,27 @@ input,textarea,select{font-family:inherit;font-size:16px;color:var(--text)}
     <div id="timer-opts"></div>
   </div>
 
+  <div class="sheet" id="sheet-about">
+    <div class="grab"></div>
+    <h2>How Kalisi works</h2>
+    <p class="sub">Kalisi (కలిసి — "together") is a messenger built on one promise: your conversations belong to you, not to us.</p>
+    <div class="pcard"><div class="ph">🪪 No phone number, ever</div>
+      <div class="ps">You are your @username. No OTP, no SIM, no contact-list upload. Share your handle only with people you choose — strangers have no way to find or spam you.</div></div>
+    <div class="pcard"><div class="ph">🔒 End-to-end encrypted</div>
+      <div class="ps">Encryption keys are created and stored only on your phone. Messages are sealed before they leave your device — our server mathematically cannot read them.</div></div>
+    <div class="pcard"><div class="ph">📮 Relay &amp; delete</div>
+      <div class="ps">Our server is a postman, not a warehouse. It holds your sealed message only until your friend's phone collects it, then destroys its copy — and sends you a deletion receipt as proof (long-press any delivered message → Message info).</div></div>
+    <div class="pcard"><div class="ph">🔥 Burn-on-read</div>
+      <div class="ps">Toggle the flame before sending. The message can be viewed exactly once on the other side, then destroys itself on both phones.</div></div>
+    <div class="pcard"><div class="ph">🎭 Personas</div>
+      <div class="ps">One phone, up to five separate identities — family, business, strangers. Different @usernames, separate chats, impossible to link together.</div></div>
+    <div class="pcard"><div class="ph">💾 Backups only you control</div>
+      <div class="ps">Nothing is stored in any cloud. Save an encrypted backup file, keep it anywhere, and restore it on a new phone with your passphrase. Without the passphrase, the file is unreadable — even to us.</div></div>
+    <div class="pcard"><div class="ph">⏳ Username policy</div>
+      <div class="ps">Your @username is locked to you while you're active. If an account is unused for 90 days, the handle is released so someone else can register it. Your chats and KAL-ID are never touched — just open Kalisi once in a while to keep your name.</div></div>
+    <p class="qr-sub" style="text-align:center;margin-top:6px">Kalisi · kalisi.app · made in India 🇮🇳</p>
+  </div>
+
   <input type="file" id="restore-in" accept=".kbk,application/json" class="hide" onchange="restoreFile(this)">
   <div id="toast"></div>
 </div>
@@ -3057,6 +3078,11 @@ async function renderPrivacy(){
       <div class="menu-it" onclick="exportData()">⬇ &nbsp;Export readable data (JSON)</div>
       <div class="menu-it red" onclick="wipeAll()">🗑 &nbsp;Wipe everything from this phone</div>
     </div>
+    <h3>Account</h3>
+    <div class="pcard">
+      <div class="menu-it" onclick="openSheet('sheet-about')">ℹ️ &nbsp;About Kalisi · how it works</div>
+      <div class="menu-it red" onclick="logout()">🚪 &nbsp;Log out from this phone</div>
+    </div>
     <p class="qr-sub" style="text-align:center;margin-top:4px">Kalisi prototype v0.1 · all data lives in this browser only</p>`;
 }
 function timerOptions(sel){
@@ -3067,6 +3093,13 @@ function exportData(){
   const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kalisi-export.json'; a.click();
   toast('Exported — this is ALL the data that exists.');
+}
+function logout(){
+  const ok=confirm("Log out?\n\nYour account exists ONLY on this phone. Without a backup file, logging out deletes it permanently — @username, keys, chats, everything.\n\nPress Cancel to save a backup first (Privacy → Save encrypted backup).");
+  if(!ok)return;
+  const sure=confirm("Last check: do you have your backup file saved somewhere safe?");
+  if(!sure){ toast('Save a backup first — then log out'); return; }
+  localStorage.removeItem(LS_KEY); location.reload();
 }
 function wipeAll(){
   if(!confirm('Delete every persona, contact and message from this phone? This cannot be undone.'))return;

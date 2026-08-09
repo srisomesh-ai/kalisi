@@ -40,8 +40,15 @@ function register(PDO $pdo, array $in): void {
   $pubkey = $in['pubkey'] ?? null; // JWK (public only)
   if ($name === '' || mb_strlen($name) > 24 || !is_array($pubkey)) out(false, ['error' => 'bad_input']);
   if (!preg_match('/^[a-z0-9_]{3,20}$/', $username)) out(false, ['error' => 'bad_username']);
-  $st = $pdo->prepare('SELECT 1 FROM k_users WHERE username = ?'); $st->execute([$username]);
-  if ($st->fetch()) out(false, ['error' => 'username_taken']);
+  $st = $pdo->prepare('SELECT kal_id, last_seen FROM k_users WHERE username = ?'); $st->execute([$username]);
+  if ($ex = $st->fetch()) {
+    if (strtotime($ex['last_seen']) < time() - 90*86400) {
+      // inactive 90+ days: release the handle (account keeps its KAL-ID)
+      $pdo->prepare("UPDATE k_users SET username = '' WHERE kal_id = ?")->execute([$ex['kal_id']]);
+    } else {
+      out(false, ['error' => 'username_taken']);
+    }
+  }
   unset($pubkey['d']); // never accept private material
   $token = bin2hex(random_bytes(24));
   for ($i = 0; $i < 8; $i++) {
@@ -118,8 +125,10 @@ function fetchMsgs(PDO $pdo, array $in): void {
 function checkUsername(PDO $pdo, array $in): void {
   $u = strtolower(trim((string)($in['username'] ?? ''), " @"));
   if (!preg_match('/^[a-z0-9_]{3,20}$/', $u)) out(true, ['available' => false, 'reason' => 'invalid']);
-  $st = $pdo->prepare('SELECT 1 FROM k_users WHERE username = ?'); $st->execute([$u]);
-  out(true, ['available' => !$st->fetch()]);
+  $st = $pdo->prepare('SELECT last_seen FROM k_users WHERE username = ?'); $st->execute([$u]);
+  $ex = $st->fetch();
+  $avail = !$ex || strtotime($ex['last_seen']) < time() - 90*86400;
+  out(true, ['available' => $avail]);
 }
 
 /* ---------------- helpers ---------------- */
