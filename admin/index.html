@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D1120">
+<meta name="robots" content="noindex,nofollow">
+<title>Kalisi Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D1120;--panel:#161C30;--panel2:#1E2540;--line:#28304F;--text:#EDEEF4;--muted:#8A91AB;--faint:#5A6180;--gold:#F5A83C;--ember:#E4573F;--ok:#59C98D;--disp:'Bricolage Grotesque',system-ui,sans-serif;--mono:ui-monospace,Menlo,Consolas,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#070A14;color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding:20px}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit;font-size:15px}
+/* login */
+#login{max-width:380px;margin:12vh auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:28px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:800;font-size:22px;margin-bottom:6px}
+.logo svg{flex:none}
+.sub{color:var(--muted);font-size:13.5px;margin-bottom:20px}
+label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:14px 0 6px}
+input[type=text],input[type=password],input[type=search]{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px 14px;color:var(--text)}
+input:focus{outline:none;border-color:var(--gold)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--gold);color:#20160A;font-weight:700;border:none;border-radius:11px;padding:12px 18px;font-size:15px}
+.btn:active{transform:scale(.98)}
+.btn.sm{padding:7px 12px;font-size:13px;border-radius:9px}
+.btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.btn.red{background:transparent;color:var(--ember);border:1px solid rgba(228,87,63,.4)}
+.btn.amber{background:transparent;color:var(--gold);border:1px solid rgba(245,168,60,.4)}
+.err{color:var(--ember);font-size:13px;margin-top:12px;min-height:18px}
+/* app */
+#panel{display:none}
+.top{display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.top .logo{font-size:20px;flex:1}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.stat .n{font-family:var(--disp);font-weight:800;font-size:28px}
+.stat .l{color:var(--muted);font-size:12.5px;margin-top:2px}
+.toolbar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.toolbar input{flex:1;min-width:200px}
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tabb{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 15px;color:var(--muted);font-weight:600;font-size:14px}
+.tabb.on{background:var(--panel2);color:var(--gold);border-color:var(--gold)}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:14px;overflow:hidden}
+th,td{text-align:left;padding:12px 14px;font-size:13.5px;border-bottom:1px solid var(--line)}
+th{color:var(--faint);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+tr:last-child td{border-bottom:none}
+.uname{font-weight:650}
+.uid{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
+.pill.on{color:var(--ok);background:rgba(89,201,141,.12)}
+.pill.off{color:var(--ember);background:rgba(228,87,63,.12)}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.muted{color:var(--muted)}
+.empty{padding:40px;text-align:center;color:var(--faint)}
+#toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,14px);background:#242C4C;border:1px solid var(--line);padding:11px 18px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;transition:.2s;pointer-events:none}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+@media(max-width:640px){.hide-sm{display:none}th,td{padding:10px 8px;font-size:12.5px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- LOGIN -->
+  <div id="login">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="10" width="18" height="11" rx="3" fill="#F5A83C"/><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="#F5A83C" stroke-width="2.4"/><circle cx="12" cy="15.5" r="1.8" fill="#0D1120"/></svg>
+      Kalisi Admin
+    </div>
+    <div class="sub">Restricted area — operator access only.</div>
+    <label>Username</label>
+    <input type="text" id="a-user" autocomplete="username" autocapitalize="none">
+    <label>Password</label>
+    <input type="password" id="a-pass" autocomplete="current-password">
+    <div class="err" id="a-err"></div>
+    <button class="btn" style="width:100%;margin-top:8px" onclick="doLogin()">Sign in</button>
+  </div>
+
+  <!-- PANEL -->
+  <div id="panel">
+    <div class="top">
+      <div class="logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="10" width="18" height="11" rx="3" fill="#F5A83C"/><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="#F5A83C" stroke-width="2.4"/><circle cx="12" cy="15.5" r="1.8" fill="#0D1120"/></svg>
+        Kalisi Admin
+      </div>
+      <button class="btn ghost sm" onclick="loadAll()">↻ Refresh</button>
+      <button class="btn red sm" onclick="doLogout()">Log out</button>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="tabs">
+      <button class="tabb on" id="tab-users" onclick="showTab('users')">Users</button>
+      <button class="tabb" id="tab-groups" onclick="showTab('groups')">Groups</button>
+    </div>
+
+    <div id="view-users">
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Search @username, name or KAL-ID…" oninput="renderUsers()">
+      </div>
+      <table>
+        <thead><tr><th>User</th><th class="hide-sm">KAL-ID</th><th>Status</th><th class="hide-sm">Last seen</th><th>Actions</th></tr></thead>
+        <tbody id="users-body"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div id="view-groups" style="display:none">
+      <table>
+        <thead><tr><th>Group</th><th class="hide-sm">GID</th><th>Members</th><th class="hide-sm">Created</th></tr></thead>
+        <tbody id="groups-body"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const API='api.php';
+let TOKEN=sessionStorage.getItem('kalisi_admin_token')||'';
+let USERS=[], GROUPS=[];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('on'),2200);}
+
+async function call(action,body){
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,token:TOKEN,...body})});
+  const j=await r.json();
+  if(!j.ok){
+    if(j.error==='admin_auth_failed'||j.error==='admin_auth_required'){ logoutLocal(); throw new Error('session expired'); }
+    throw new Error(j.error||'error');
+  }
+  return j;
+}
+async function doLogin(){
+  $('a-err').textContent='';
+  const user=$('a-user').value.trim(), pass=$('a-pass').value;
+  if(!user||!pass){$('a-err').textContent='Enter username and password';return;}
+  try{
+    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',user,pass})});
+    const j=await r.json();
+    if(!j.ok){$('a-err').textContent=j.error==='bad_credentials'?'Wrong username or password':(j.error==='db_connect_failed'?'Server DB not connected':j.error);return;}
+    TOKEN=j.token; sessionStorage.setItem('kalisi_admin_token',TOKEN);
+    enterPanel();
+  }catch(e){$('a-err').textContent='Cannot reach server';}
+}
+function doLogout(){ call('logout',{}).catch(()=>{}); logoutLocal(); }
+function logoutLocal(){ TOKEN=''; sessionStorage.removeItem('kalisi_admin_token'); $('panel').style.display='none'; $('login').style.display='block'; }
+function enterPanel(){ $('login').style.display='none'; $('panel').style.display='block'; loadAll(); }
+
+async function loadAll(){
+  try{
+    const s=await call('stats',{});
+    const st=s.stats;
+    $('stats').innerHTML=[
+      ['Total users',st.users],['Active (7d)',st.active7d],['Disabled',st.disabled],['Queued msgs',st.queued],['Groups',st.groups]
+    ].map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+    const u=await call('list_users',{}); USERS=u.users; renderUsers();
+    const g=await call('list_groups',{}); GROUPS=g.groups; renderGroups();
+  }catch(e){ toast(e.message); }
+}
+function fmt(d){ if(!d)return '—'; const t=new Date(d.replace(' ','T')); const diff=(Date.now()-t)/86400000;
+  if(diff<1)return 'today'; if(diff<2)return 'yesterday'; if(diff<30)return Math.floor(diff)+'d ago'; return t.toLocaleDateString(); }
+
+function renderUsers(){
+  const q=($('search').value||'').toLowerCase();
+  const rows=USERS.filter(u=>!q||(u.username||'').toLowerCase().includes(q)||(u.name||'').toLowerCase().includes(q)||u.kal_id.toLowerCase().includes(q));
+  if(!rows.length){$('users-body').innerHTML='<tr><td colspan="5" class="empty">No users found</td></tr>';return;}
+  $('users-body').innerHTML=rows.map(u=>`
+    <tr>
+      <td><div class="uname">${u.username?'@'+esc(u.username):'<span class="muted">(no username)</span>'}</div><div class="muted">${esc(u.name)}</div></td>
+      <td class="hide-sm uid">${esc(u.kal_id)}</td>
+      <td>${u.disabled?'<span class="pill off">Disabled</span>':'<span class="pill on">Active</span>'}</td>
+      <td class="hide-sm muted">${fmt(u.last_seen)}</td>
+      <td><div class="acts">
+        ${u.disabled
+          ? `<button class="btn sm amber" onclick="setDisabled('${u.kal_id}',0)">Enable</button>`
+          : `<button class="btn sm amber" onclick="setDisabled('${u.kal_id}',1)">Disable</button>`}
+        <button class="btn sm red" onclick="delUser('${u.kal_id}','${esc(u.username||u.name)}')">Delete</button>
+      </div></td>
+    </tr>`).join('');
+}
+function renderGroups(){
+  if(!GROUPS.length){$('groups-body').innerHTML='<tr><td colspan="4" class="empty">No groups yet</td></tr>';return;}
+  $('groups-body').innerHTML=GROUPS.map(g=>`
+    <tr><td class="uname">${esc(g.name)}</td><td class="hide-sm uid">${esc(g.gid)}</td>
+    <td>${g.members}</td><td class="hide-sm muted">${fmt(g.created_at)}</td></tr>`).join('');
+}
+async function setDisabled(kid,val){
+  try{ await call('set_disabled',{kal_id:kid,disabled:val});
+    const u=USERS.find(x=>x.kal_id===kid); if(u)u.disabled=val; renderUsers();
+    toast(val?'User disabled':'User enabled'); loadStatsOnly();
+  }catch(e){ toast(e.message); }
+}
+async function delUser(kid,label){
+  if(!confirm('Delete '+label+' ('+kid+')?\n\nThis permanently removes the account, frees the @username, and deletes their queued messages, status and blocks. Cannot be undone.'))return;
+  try{ await call('delete_user',{kal_id:kid});
+    USERS=USERS.filter(x=>x.kal_id!==kid); renderUsers(); toast('User deleted'); loadStatsOnly();
+  }catch(e){ toast(e.message); }
+}
+async function loadStatsOnly(){ try{ const s=await call('stats',{}); const st=s.stats;
+  $('stats').innerHTML=[['Total users',st.users],['Active (7d)',st.active7d],['Disabled',st.disabled],['Queued msgs',st.queued],['Groups',st.groups]]
+    .map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join(''); }catch(e){} }
+function showTab(t){
+  $('tab-users').classList.toggle('on',t==='users'); $('tab-groups').classList.toggle('on',t==='groups');
+  $('view-users').style.display=t==='users'?'block':'none'; $('view-groups').style.display=t==='groups'?'block':'none';
+}
+$('a-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+if(TOKEN) enterPanel();
+</script>
+</body>
+</html>

@@ -11,6 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/landing-voice.css">
+<link rel="stylesheet" href="css/features.css">
 </head>
 <body>
 
@@ -154,8 +155,14 @@
     <div class="top">
       <button class="avatar" id="me-avatar" onclick="openSheet('sheet-personas')">S</button>
       <div class="brand">Kali<span>si</span></div>
+      <button class="icon-btn" onclick="openNewGroup()" aria-label="New group">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.3"/><path d="M2.5 19c.6-2.8 2.8-4.5 5.5-4.5s4.9 1.7 5.5 4.5M15 15c2.2 0 4 1.3 4.5 3.5"/></svg>
+      </button>
       <button class="icon-btn" onclick="openMyQR()" aria-label="My QR code">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14h1M14 20h1M20 20h1"/></svg>
+      </button>
+      <button class="icon-btn" onclick="openSettings()" aria-label="Settings">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
       </button>
     </div>
     <div class="tabpane on" id="pane-chats">
@@ -169,12 +176,16 @@
       </div>
       <div id="chat-list"></div>
     </div>
+    <div class="tabpane" id="pane-status"><div class="sect" id="status-body"></div></div>
     <div class="tabpane" id="pane-connect"><div class="sect" id="connect-body"></div></div>
     <div class="tabpane" id="pane-privacy"><div class="sect" id="privacy-body"></div></div>
     <div class="tabs">
       <button class="tab on" data-pane="pane-chats" onclick="switchTab(this)">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8.5 8.5 0 0 1-8.5 8.5c-1.6 0-3.1-.4-4.4-1.2L3 21l1.7-5.1A8.5 8.5 0 1 1 21 12Z"/></svg>
         Chats</button>
+      <button class="tab" data-pane="pane-status" onclick="switchTab(this)">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" stroke-dasharray="4 3"/><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/></svg>
+        Status</button>
       <button class="tab" data-pane="pane-connect" onclick="switchTab(this)">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><path d="M17 8h5M19.5 5.5v5"/></svg>
         Connect</button>
@@ -200,6 +211,9 @@
       </div>
       <button class="icon-btn" onclick="openTimerSheet()" aria-label="Disappearing messages">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2.5h6"/></svg>
+      </button>
+      <button class="icon-btn" id="chat-header-menu" aria-label="More">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
       </button>
     </div>
     <div id="msgs"></div>
@@ -295,6 +309,11 @@
     <p class="qr-sub" style="text-align:center;margin-top:6px">Kalisi · kalisi.app · made in India 🇮🇳</p>
   </div>
 
+  <div class="sheet" id="sheet-settings"><div class="grab"></div><div id="settings-body"></div></div>
+  <div class="sheet" id="sheet-newgroup"><div class="grab"></div><div id="newgroup-body"></div></div>
+  <div class="sheet" id="sheet-status-compose"><div class="grab"></div><div id="status-compose-body"></div></div>
+  <div class="sheet" id="sheet-status-view" style="padding:0;background:#000"><div id="status-view-body"></div></div>
+
   <input type="file" id="restore-in" accept=".kbk,application/json" class="hide" onchange="restoreFile(this)">
   <div id="toast"></div>
 </div>
@@ -306,6 +325,10 @@
 <script src="js/net.js"></script>
 <script src="js/voice.js"></script>
 <script src="js/landing.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/block.js"></script>
+<script src="js/status.js"></script>
+<script src="js/groups.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

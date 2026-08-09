@@ -1,0 +1,133 @@
+<?php
+/* ============================================================
+   Kalisi ADMIN API — separate from the public api/.
+   Password-protected. Controls users: list / enable / disable / delete.
+   ============================================================ */
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
+
+require __DIR__ . '/../api/config.php';
+
+/* Admin credentials — override in config.local.php on the server via ADMIN_USER / ADMIN_PASS_HASH.
+   Default password is 'Kalisi@Admin2026' (CHANGE IT). Hash = sha256 of the password. */
+if (!defined('ADMIN_USER'))       define('ADMIN_USER', 'someswara');
+if (!defined('ADMIN_PASS_HASH'))  define('ADMIN_PASS_HASH', hash('sha256', 'Kalisi@Admin2026'));
+
+set_error_handler(function($no,$str){ throw new ErrorException($str,0,$no); });
+
+try {
+  $pdo = new PDO('mysql:host='.DB_HOST.';dbname='.DB_NAME.';charset=utf8mb4', DB_USER, DB_PASS,
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+} catch (Throwable $e) { out(false, ['error' => 'db_connect_failed']); }
+
+$in = json_decode(file_get_contents('php://input'), true) ?: [];
+$action = $in['action'] ?? '';
+
+/* login issues a short-lived admin token (stored server-side in k_admin_sessions) */
+try {
+  if ($action === 'login') { adminLogin($pdo, $in); }
+  $admin = adminAuth($pdo, $in);   // all other actions require valid admin token
+  switch ($action) {
+    case 'stats':        adminStats($pdo); break;
+    case 'list_users':   listUsers($pdo, $in); break;
+    case 'set_disabled': setDisabled($pdo, $in); break;
+    case 'delete_user':  deleteUser($pdo, $in); break;
+    case 'list_groups':  listGroups($pdo); break;
+    case 'logout':       $pdo->prepare('DELETE FROM k_admin_sessions WHERE token = ?')->execute([$in['token'] ?? '']); out(true, ['bye'=>1]); break;
+    default:             out(false, ['error' => 'unknown_action']);
+  }
+} catch (Throwable $e) {
+  out(false, ['error' => 'server_error', 'detail' => $e->getMessage()]);
+}
+
+/* ---------------- auth ---------------- */
+function adminMigrate(PDO $pdo): void {
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_admin_sessions (
+    token VARCHAR(64) PRIMARY KEY,
+    created_at DATETIME NOT NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+function adminLogin(PDO $pdo, array $in): void {
+  adminMigrate($pdo);
+  $u = (string)($in['user'] ?? '');
+  $p = (string)($in['pass'] ?? '');
+  if ($u !== ADMIN_USER || !hash_equals(ADMIN_PASS_HASH, hash('sha256', $p))) {
+    usleep(400000); // slow brute force
+    out(false, ['error' => 'bad_credentials']);
+  }
+  $token = bin2hex(random_bytes(24));
+  $pdo->prepare('INSERT INTO k_admin_sessions (token, created_at) VALUES (?, NOW())')->execute([$token]);
+  // clean sessions older than 12h
+  $pdo->prepare('DELETE FROM k_admin_sessions WHERE created_at < (NOW() - INTERVAL 12 HOUR)')->execute();
+  out(true, ['token' => $token]);
+}
+function adminAuth(PDO $pdo, array $in): bool {
+  adminMigrate($pdo);
+  $token = (string)($in['token'] ?? '');
+  if ($token === '') out(false, ['error' => 'admin_auth_required']);
+  $st = $pdo->prepare('SELECT 1 FROM k_admin_sessions WHERE token = ? AND created_at > (NOW() - INTERVAL 12 HOUR)');
+  $st->execute([$token]);
+  if (!$st->fetch()) out(false, ['error' => 'admin_auth_failed']);
+  return true;
+}
+
+/* ---------------- actions ---------------- */
+function adminStats(PDO $pdo): void {
+  $u = (int)$pdo->query("SELECT COUNT(*) c FROM k_users")->fetch()['c'];
+  $active = (int)$pdo->query("SELECT COUNT(*) c FROM k_users WHERE last_seen > (NOW() - INTERVAL 7 DAY)")->fetch()['c'];
+  $disabled = (int)$pdo->query("SELECT COUNT(*) c FROM k_users WHERE disabled = 1")->fetch()['c'];
+  $queue = (int)$pdo->query("SELECT COUNT(*) c FROM k_queue")->fetch()['c'];
+  $groups = 0; try { $groups = (int)$pdo->query("SELECT COUNT(*) c FROM k_groups")->fetch()['c']; } catch (Throwable $e) {}
+  out(true, ['stats' => ['users'=>$u,'active7d'=>$active,'disabled'=>$disabled,'queued'=>$queue,'groups'=>$groups]]);
+}
+function listUsers(PDO $pdo, array $in): void {
+  $q = trim((string)($in['q'] ?? ''));
+  $limit = min(500, max(10, (int)($in['limit'] ?? 200)));
+  if ($q !== '') {
+    $st = $pdo->prepare("SELECT kal_id, username, name, disabled, created_at, last_seen
+                         FROM k_users WHERE username LIKE ? OR name LIKE ? OR kal_id LIKE ?
+                         ORDER BY last_seen DESC LIMIT $limit");
+    $like = '%'.$q.'%'; $st->execute([$like,$like,$like]);
+  } else {
+    $st = $pdo->query("SELECT kal_id, username, name, disabled, created_at, last_seen
+                       FROM k_users ORDER BY last_seen DESC LIMIT $limit");
+  }
+  $rows = array_map(fn($r)=>[
+    'kal_id'=>$r['kal_id'],'username'=>$r['username'],'name'=>$r['name'],
+    'disabled'=>(int)$r['disabled'],
+    'created_at'=>$r['created_at'],'last_seen'=>$r['last_seen']
+  ], $st->fetchAll());
+  out(true, ['users' => $rows]);
+}
+function setDisabled(PDO $pdo, array $in): void {
+  $kid = strtoupper(trim((string)($in['kal_id'] ?? '')));
+  $val = (int)($in['disabled'] ?? 1) ? 1 : 0;
+  if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $kid)) out(false, ['error' => 'bad_id']);
+  $pdo->prepare('UPDATE k_users SET disabled = ? WHERE kal_id = ?')->execute([$val, $kid]);
+  out(true, ['kal_id' => $kid, 'disabled' => $val]);
+}
+function deleteUser(PDO $pdo, array $in): void {
+  $kid = strtoupper(trim((string)($in['kal_id'] ?? '')));
+  if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $kid)) out(false, ['error' => 'bad_id']);
+  $pdo->prepare('DELETE FROM k_users WHERE kal_id = ?')->execute([$kid]);
+  $pdo->prepare('DELETE FROM k_queue WHERE to_id = ? OR from_id = ?')->execute([$kid,$kid]);
+  $pdo->prepare('DELETE FROM k_status WHERE kal_id = ?')->execute([$kid]);
+  $pdo->prepare('DELETE FROM k_blocks WHERE blocker = ? OR blocked = ?')->execute([$kid,$kid]);
+  out(true, ['deleted' => $kid]);
+}
+function listGroups(PDO $pdo): void {
+  $rows = [];
+  try {
+    $st = $pdo->query("SELECT gid, name, owner, members, created_at FROM k_groups ORDER BY created_at DESC LIMIT 200");
+    $rows = array_map(fn($r)=>[
+      'gid'=>$r['gid'],'name'=>$r['name'],'owner'=>$r['owner'],
+      'members'=>count(json_decode($r['members'],true) ?: []),'created_at'=>$r['created_at']
+    ], $st->fetchAll());
+  } catch (Throwable $e) {}
+  out(true, ['groups' => $rows]);
+}
+
+function out(bool $ok, array $data = []): void { echo json_encode(['ok' => $ok] + $data); exit; }

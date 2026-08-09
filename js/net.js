@@ -125,8 +125,17 @@ async function pollOnce(){
       if(m){ if(m.status==='sent')m.status='delivered'; m.receipt=r.receipt.slice(0,16); changed=true; } }
   }
   for(const pkt of res.messages){
+    // group message? (relayed blob, base64 JSON with gid)
+    if(pkt.iv==='grp'){
+      try{
+        const gb=JSON.parse(decodeURIComponent(escape(atob(pkt.blob))));
+        handleGroupIncoming(gb);
+      }catch(e){}
+      changed=true; continue;
+    }
     let c=D().contacts.find(x=>x.kalId===pkt.from);
     if(!c){ try{ c=await connectReal(pkt.from); }catch(e){ continue; } }
+    if(isBlocked&&isBlocked(pkt.from)){ continue; }
     if(c._pkCheck===undefined){
       try{ const {user}=await api('lookup',{handle:c.kalId});
         c._pkCheck=JSON.stringify(user.pubkey)===JSON.stringify(c.pubkey);
@@ -157,4 +166,27 @@ async function pollOnce(){
     if(m.expireAt)scheduleExpiry(m,c.id);
   }
   if(changed){ save(); if(curChat)renderMsgs(true); renderChats(); }
+}
+
+/* ---- incoming group message ---- */
+function handleGroupIncoming(gb){
+  if(!gb.gid)return;
+  let g=D().contacts.find(x=>x.kalId===gb.gid&&x.isGroup);
+  if(!g){
+    // joined a group we don't have locally yet — create shell
+    g={id:uid(),name:gb.gname||'Group',kalId:gb.gid,isGroup:true,members:[],memberNames:{},
+       color:COLORS[Math.floor(Math.random()*COLORS.length)],real:true};
+    D().contacts.push(g); chat(g.id);
+  }
+  if(gb.fromKal&&gb.fromName){ g.memberNames=g.memberNames||{}; g.memberNames[gb.fromKal]=gb.fromName;
+    if(!g.members.includes(gb.fromKal))g.members.push(gb.fromKal); }
+  const ch=chat(g.id);
+  if(ch.msgs.some(x=>x.id===gb.cid))return; // dedup
+  const m={id:gb.cid||uid(),from:'them',senderName:gb.fromName||'',kind:gb.kind,text:gb.text||'',
+           img:gb.img||null,audio:gb.audio||null,wave:gb.wave||null,dur:gb.dur||0,
+           ts:gb.ts||now(),status:'read'};
+  ch.msgs.push(m);
+  if(curChat!==g.id)ch.unread=(ch.unread||0)+1;
+  save();
+  if(curChat===g.id)renderMsgs(true); else renderChats();
 }

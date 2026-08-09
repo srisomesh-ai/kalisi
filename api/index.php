@@ -30,6 +30,13 @@ try {
     case 'send':      send($pdo, $in); break;
     case 'fetch':     fetchMsgs($pdo, $in); break;
     case 'check':     checkUsername($pdo, $in); break;
+    case 'block':     blockUser($pdo, $in); break;
+    case 'unblock':   unblockUser($pdo, $in); break;
+    case 'status_post':   statusPost($pdo, $in); break;
+    case 'status_feed':   statusFeed($pdo, $in); break;
+    case 'group_create':  groupCreate($pdo, $in); break;
+    case 'group_send':    groupSend($pdo, $in); break;
+    case 'group_info':    groupInfo($pdo, $in); break;
     case 'ping':      out(true, ['pong' => time()]); break;
     default:          out(false, ['error' => 'unknown_action']);
   }
@@ -92,6 +99,8 @@ function send(PDO $pdo, array $in): void {
   if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $to) || $blob === '' || strlen($blob) > 900000) out(false, ['error' => 'bad_input']);
   $st = $pdo->prepare('SELECT 1 FROM k_users WHERE kal_id = ?'); $st->execute([$to]);
   if (!$st->fetch()) out(false, ['error' => 'recipient_not_found']);
+  $st = $pdo->prepare('SELECT 1 FROM k_blocks WHERE blocker = ? AND blocked = ?'); $st->execute([$to, $me['kal_id']]);
+  if ($st->fetch()) { out(true, ['queued' => true]); } // silently drop (blocked) — sender sees normal ticks
   $st = $pdo->prepare('INSERT INTO k_queue (to_id, from_id, client_id, iv, payload, created_at) VALUES (?,?,?,?,?,NOW())');
   $st->execute([$to, $me['kal_id'], $cid, $iv, $blob]);
   out(true, ['queued' => true]);
@@ -136,16 +145,102 @@ function checkUsername(PDO $pdo, array $in): void {
   out(true, ['available' => $avail]);
 }
 
+function blockUser(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $t = strtoupper(trim((string)($in['kal_id'] ?? '')));
+  if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $t)) out(false, ['error' => 'bad_id']);
+  $pdo->prepare('INSERT IGNORE INTO k_blocks (blocker, blocked, created_at) VALUES (?,?,NOW())')->execute([$me['kal_id'], $t]);
+  out(true, ['blocked' => $t]);
+}
+function unblockUser(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $t = strtoupper(trim((string)($in['kal_id'] ?? '')));
+  $pdo->prepare('DELETE FROM k_blocks WHERE blocker = ? AND blocked = ?')->execute([$me['kal_id'], $t]);
+  out(true, ['unblocked' => $t]);
+}
+
+function statusPost(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $type = in_array(($in['type'] ?? ''), ['text','photo','voice']) ? $in['type'] : 'text';
+  $payload = (string)($in['payload'] ?? '');   // encrypted or plain small blob; capped
+  if ($payload === '' || strlen($payload) > 1500000) out(false, ['error' => 'bad_input']);
+  $pdo->prepare('INSERT INTO k_status (kal_id, type, payload, created_at) VALUES (?,?,?,NOW())')
+      ->execute([$me['kal_id'], $type, $payload]);
+  // keep only last 24h per user
+  $pdo->prepare('DELETE FROM k_status WHERE created_at < (NOW() - INTERVAL 24 HOUR)')->execute();
+  out(true, ['posted' => true]);
+}
+function statusFeed(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $ids = $in['contacts'] ?? [];   // list of KAL-IDs the user follows (their contacts)
+  if (!is_array($ids)) $ids = [];
+  $ids[] = $me['kal_id'];
+  $ids = array_values(array_unique(array_filter($ids, fn($x)=>preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', (string)$x))));
+  if (!$ids) out(true, ['status' => []]);
+  $ph = implode(',', array_fill(0, count($ids), '?'));
+  $st = $pdo->prepare("SELECT s.kal_id, s.type, s.payload, s.created_at, u.username, u.name
+                       FROM k_status s JOIN k_users u ON u.kal_id = s.kal_id
+                       WHERE s.kal_id IN ($ph) AND s.created_at > (NOW() - INTERVAL 24 HOUR)
+                       ORDER BY s.created_at DESC LIMIT 200");
+  $st->execute($ids);
+  $rows = array_map(fn($r)=>[
+    'kal_id'=>$r['kal_id'],'username'=>$r['username'],'name'=>$r['name'],
+    'type'=>$r['type'],'payload'=>$r['payload'],'ts'=>strtotime($r['created_at'])*1000
+  ], $st->fetchAll());
+  out(true, ['status' => $rows]);
+}
+
+function groupCreate(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $name = trim((string)($in['name'] ?? ''));
+  $members = $in['members'] ?? [];
+  if ($name === '' || mb_strlen($name) > 40 || !is_array($members)) out(false, ['error' => 'bad_input']);
+  $gid = 'GRP-'.substr(bin2hex(random_bytes(6)),0,10);
+  $members[] = $me['kal_id'];
+  $members = array_values(array_unique(array_filter($members, fn($x)=>preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', (string)$x))));
+  $pdo->prepare('INSERT INTO k_groups (gid, name, owner, members, created_at) VALUES (?,?,?,?,NOW())')
+      ->execute([$gid, $name, $me['kal_id'], json_encode($members)]);
+  out(true, ['gid' => $gid, 'name' => $name, 'members' => $members]);
+}
+function groupInfo(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $gid = (string)($in['gid'] ?? '');
+  $st = $pdo->prepare('SELECT * FROM k_groups WHERE gid = ?'); $st->execute([$gid]);
+  $g = $st->fetch();
+  if (!$g) out(false, ['error' => 'group_not_found']);
+  out(true, ['group' => ['gid'=>$g['gid'],'name'=>$g['name'],'owner'=>$g['owner'],'members'=>json_decode($g['members'],true)]]);
+}
+function groupSend(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $gid = (string)($in['gid'] ?? '');
+  $text = (string)($in['text'] ?? '');   // server-relayed simple group: fan-out plaintext-in-transit blob
+  $iv = (string)($in['iv'] ?? '');
+  $blob = (string)($in['blob'] ?? '');
+  $cid = substr((string)($in['client_id'] ?? ''), 0, 32);
+  if ($blob === '' || strlen($blob) > 900000) out(false, ['error' => 'bad_input']);
+  $st = $pdo->prepare('SELECT members FROM k_groups WHERE gid = ?'); $st->execute([$gid]);
+  $g = $st->fetch();
+  if (!$g) out(false, ['error' => 'group_not_found']);
+  $members = json_decode($g['members'], true) ?: [];
+  $ins = $pdo->prepare('INSERT INTO k_queue (to_id, from_id, client_id, iv, payload, created_at) VALUES (?,?,?,?,?,NOW())');
+  foreach ($members as $mm) {
+    if ($mm === $me['kal_id']) continue;
+    $ins->execute([$mm, $me['kal_id'], $cid, $iv, $blob]);
+  }
+  out(true, ['sent' => true, 'gid' => $gid]);
+}
+
 /* ---------------- helpers ---------------- */
 
 function auth(PDO $pdo, array $in): array {
   $kid = strtoupper(trim((string)($in['kal_id'] ?? '')));
   $token = (string)($in['token'] ?? '');
   if ($kid === '' || $token === '') out(false, ['error' => 'auth_required']);
-  $st = $pdo->prepare('SELECT kal_id FROM k_users WHERE kal_id = ? AND token = ?');
+  $st = $pdo->prepare('SELECT kal_id, disabled FROM k_users WHERE kal_id = ? AND token = ?');
   $st->execute([$kid, $token]);
   $u = $st->fetch();
   if (!$u) out(false, ['error' => 'auth_failed']);
+  if ((int)($u['disabled'] ?? 0) === 1) out(false, ['error' => 'account_disabled']);
   return $u;
 }
 
@@ -167,6 +262,28 @@ function migrate(PDO $pdo): void {
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   try { $pdo->exec("ALTER TABLE k_users ADD COLUMN username VARCHAR(20) NOT NULL DEFAULT ''"); } catch (Throwable $e) {}
   try { $pdo->exec("CREATE UNIQUE INDEX idx_username ON k_users (username)"); } catch (Throwable $e) {}
+  try { $pdo->exec("ALTER TABLE k_users ADD COLUMN disabled TINYINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_blocks (
+    blocker VARCHAR(14) NOT NULL,
+    blocked VARCHAR(14) NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (blocker, blocked)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_status (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    kal_id VARCHAR(14) NOT NULL,
+    type VARCHAR(8) NOT NULL DEFAULT 'text',
+    payload MEDIUMTEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_kal (kal_id), KEY idx_created (created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_groups (
+    gid VARCHAR(16) PRIMARY KEY,
+    name VARCHAR(60) NOT NULL,
+    owner VARCHAR(14) NOT NULL,
+    members MEDIUMTEXT NOT NULL,
+    created_at DATETIME NOT NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   $pdo->exec("CREATE TABLE IF NOT EXISTS k_queue (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     to_id VARCHAR(14) NOT NULL,

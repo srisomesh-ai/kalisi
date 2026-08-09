@@ -1,5 +1,6 @@
 /* ============ Kalisi prototype — all data stays in this browser ============ */
 'use strict';
+const APP_VERSION='v0.4';
 const LS_KEY='kalisi_v1';
 const COLORS=['#F5A83C','#7FA8F5','#59C98D','#E4739A','#B58CF0','#5FC9C9','#E4A05F'];
 let S=null;                 // app state
@@ -123,6 +124,7 @@ function switchTab(btn){
   btn.classList.add('on'); $(btn.dataset.pane).classList.add('on');
   if(btn.dataset.pane==='pane-connect')renderConnect();
   if(btn.dataset.pane==='pane-privacy')renderPrivacy();
+  if(btn.dataset.pane==='pane-status')openStatusTab();
 }
 function renderAll(){
   const m=me();
@@ -146,6 +148,7 @@ function renderChats(){
   const list=$('chat-list'); list.innerHTML='';
   const rows=D().contacts
     .map(c=>({c,ch:chat(c.id)}))
+    .filter(({c})=>!isBlocked(c.kalId))
     .filter(({c})=>c.name.toLowerCase().includes(q))
     .sort((a,b)=>(b.ch.msgs.at(-1)?.ts||0)-(a.ch.msgs.at(-1)?.ts||0));
   if(!rows.length){list.innerHTML=`<div class="empty"><b>No chats yet.</b><br>Go to <b>Connect</b> to add a friend by QR or Kalisi ID.</div>`;return;}
@@ -359,7 +362,10 @@ function openChat(cid){
   ch.unread=0; save();
   $('chat-name').textContent=c.name;
   const av=$('chat-avatar'); av.textContent=initials(c.name); av.style.background=c.color; av.style.color='#141A2E';
-  setSub();
+  if(c.isGroup){ $('chat-sub-t').textContent=groupMsgLabel(c); }
+  else setSub();
+  // header menu button
+  const hm=$('chat-header-menu'); if(hm)hm.onclick=()=>openChatMenu(cid);
   $('scr-main').classList.remove('on'); $('scr-chat').classList.add('on');
   renderMsgs(true);
 }
@@ -368,6 +374,26 @@ function setSub(txt,typing){
   $('chat-sub-t').textContent=txt||('End-to-end encrypted · keys on this device'+(chat(curChat).timer?` · ⌛ ${timerLabel(chat(curChat).timer)}`:''));
 }
 function timerLabel(t){return {30:'30s',43200:'12h',86400:'24h',604800:'7d'}[t]||'off';}
+function openChatMenu(cid){
+  const c=contact(cid);
+  let items='';
+  if(c.isGroup){
+    items=`<div class="menu-it" onclick="closeSheets();showGroupInfo('${cid}')">👥 &nbsp;Group info</div>`;
+  }else{
+    const blocked=isBlocked(c.kalId);
+    items=blocked
+      ? `<div class="menu-it" onclick="unblockContact('${c.kalId}');closeSheets()">✅ &nbsp;Unblock ${esc(handleOf(c))}</div>`
+      : `<div class="menu-it red" onclick="blockContact('${cid}')">🚫 &nbsp;Block ${esc(handleOf(c))}</div>`;
+  }
+  $('msgmenu-body').innerHTML=items+`<div class="menu-it" onclick="closeSheets()">Cancel</div>`;
+  openSheet('sheet-msgmenu');
+}
+function showGroupInfo(cid){
+  const c=contact(cid);
+  const names=Object.entries(c.memberNames||{}).map(([k,n])=>`<div class="prow"><span class="k">${esc(n)}</span></div>`).join('');
+  $('msginfo-body').innerHTML=`<h2>${esc(c.name)}</h2><p class="sub">${(c.members||[]).length} members</p><div class="pcard">${names}</div>`;
+  openSheet('sheet-msginfo');
+}
 function closeChat(){ $('scr-chat').classList.remove('on'); $('scr-main').classList.add('on'); curChat=null; renderChats(); }
 function ticks(m){
   if(m.from!=='me')return '';
@@ -399,6 +425,7 @@ function msgHTML(m,c){
     inner=`<div class="burn-cover">🔥 ${m.from==='me'?'Burn message · waiting to be read':'Tap to view once'}</div>`;
     return `<div class="brow ${side}"><div class="bub burnable" data-mid="${m.id}">${inner}<div class="meta">${fmtTime(m.ts)} ${ticks(m)}</div></div></div>`;
   }
+  if(c.isGroup&&m.from==='them'&&m.senderName) inner+=`<div class="grp-sender">${esc(m.senderName)}</div>`;
   if(m.replyTo) inner+=`<div class="quote"><b>${m.replyTo.from==='me'?'You':esc(c.name)}</b>${esc(m.replyTo.text)}</div>`;
   if(m.kind==='img') inner+=`<img src="${m.img}" alt="photo">`;
   if(m.kind==='voice') inner+=voiceBubbleHTML(m);
@@ -456,12 +483,16 @@ function pushMine(part){
   if(replyTo)m.replyTo=replyTo;
   if(ch.timer)m.expireAt=now()+ch.timer*1000;
   ch.msgs.push(m); clearReply(); burnOn=false; setBurnUI(); save(); renderMsgs(true);
-  if(c.real){
+  if(c.isGroup){
+    netSendGroup(c,m).catch(()=>toast('Group message not sent — check internet'));
+  } else if(c.real){
     netSend(c,m).catch(e=>{
       if(e.message==='auth_required'||e.message==='auth_failed')
         toast('⚠️ This account is not activated on the server — go to Privacy → Log out, then sign up fresh');
       else if(e.message==='recipient_not_found')
         toast('That account no longer exists on the server');
+      else if(e.message==='account_disabled')
+        toast('⚠️ This account has been disabled by the administrator');
       else toast('Not sent — check internet');
     });
   }

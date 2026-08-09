@@ -10,10 +10,17 @@ css/
   landing-voice.css   Landing page + voice message styles
 js/
   qrcode.js           QR generation library (vendored)
-  net.js              Server API + E2E crypto (ECDH/AES-GCM) + polling + backup/restore
+  net.js              Server API + E2E crypto (ECDH/AES-GCM) + polling + backup/restore + group receive
   voice.js            Voice message record & playback
   landing.js          Landing page routing + login (restore) entry
+  settings.js         User settings page
+  block.js            Block / unblock users
+  status.js           Status / stories (text, photo, voice, 24h)
+  groups.js           Group chats (server-relayed)
   app.js              Main app logic (chats, contacts, personas, burn, etc.)
+admin/
+  index.html          Separate admin panel (own login)
+  api.php             Admin API: stats, list/enable/disable/delete users, list groups
 api/
   index.php           Relay-and-delete backend (register/lookup/send/fetch/check/ping)
   config.php          Loads DB_PASS from config.local.php (git-ignored)
