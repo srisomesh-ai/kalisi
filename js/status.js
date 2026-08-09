@@ -100,6 +100,7 @@ function openMyStatusCompose(){
     <h2>Add to my status</h2>
     <p class="sub">Visible to your contacts for 24 hours, then it disappears.</p>
     <textarea id="st-text" placeholder="Type a status update…" rows="3" style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--text);resize:none;margin-bottom:12px"></textarea>
+    <label class="st-share-opt"><input type="checkbox" id="st-allow-share"> Allow contacts to share this status</label>
     <div class="st-actions">
       <button class="btn ghost" onclick="document.getElementById('st-photo').click()">🖼 Photo</button>
       <button class="btn ghost" id="st-voice-btn" onclick="toggleStatusVoice()">🎙 Voice</button>
@@ -148,8 +149,9 @@ async function toggleStatusVoice(){
 }
 async function postStatus(type,payload){
   if(!me()?.token){ toast('Only real accounts can post status'); return; }
+  const allow_share=$('st-allow-share')?.checked?1:0;
   try{
-    await api('status_post',{...authBody(),type,payload});
+    await api('status_post',{...authBody(),type,payload,allow_share});
     toast('Status posted ✅');
     closeSheets(); refreshStatus();
   }catch(e){ toast('Could not post status'); }
@@ -173,9 +175,47 @@ function viewStatus(kalId){
       <div class="sv-bars">${items.map((_,i)=>`<span class="${i<=idx?'on':''}"></span>`).join('')}</div>
       <div class="sv-head">${avatarHTML(c||{name:nm,color:'#7FA8F5'},'small')}<div><div class="sv-name">${esc(nm)}</div><div class="sv-time">${timeAgo(it.ts)}</div></div>
         <button class="icon-btn" onclick="closeSheets()" style="margin-left:auto">✕</button></div>
-      <div class="sv-media" onclick="statusNext()">${media}</div>`;
+      <div class="sv-media" onclick="statusNext()">${media}</div>
+      <div class="sv-actions">
+        <button class="sv-act" id="sv-like" onclick="reactStatus(${it.id})">🤍 <span id="sv-like-c"></span></button>
+        <button class="sv-act" onclick="replyToStatus('${it.kal_id}',${JSON.stringify(JSON.stringify(previewOf(it)))})">↩ Reply</button>
+        ${it.allow_share?`<button class="sv-act" onclick="shareStatus(${it.id})">↗ Share</button>`:''}
+      </div>`;
+    loadReactions(it.id);
   };
   window.statusNext=()=>{ idx++; if(idx>=items.length){closeSheets();return;} render(); };
   render();
   openSheet('sheet-status-view');
+}
+
+/* ---- status social: react, reply, share ---- */
+function previewOf(it){ return it.type==='text'?it.payload.slice(0,60):(it.type==='photo'?'📷 Photo status':'🎙 Voice status'); }
+async function loadReactions(sid){
+  if(!sid||!me()?.token)return;
+  try{ const r=await api('status_reactions',{...authBody(),status_id:sid});
+    const b=$('sv-like'); if(!b)return;
+    b.innerHTML=(r.mine?'❤':'🤍')+' <span id="sv-like-c">'+(r.count||'')+'</span>';
+    b.dataset.on=r.mine?'1':'';
+  }catch(e){}
+}
+async function reactStatus(sid){
+  if(!me()?.token){toast('Sign up to react');return;}
+  try{ await api('status_react',{...authBody(),status_id:sid,emoji:'❤'}); loadReactions(sid); }catch(e){}
+}
+function replyToStatus(kalId,previewJson){
+  let preview=''; try{ preview=JSON.parse(previewJson);}catch(e){}
+  const c=D().contacts.find(x=>x.kalId===kalId);
+  if(!c){ toast('Add this contact first'); return; }
+  closeSheets();
+  switchTab(document.querySelector('.tab[data-pane="pane-chats"]'));
+  openChat(c.id);
+  setTimeout(()=>{ const inp=$('msg-in'); if(inp){ inp.value='Re: '+preview+'\n'; inp.focus();
+    inp.dispatchEvent(new Event('input')); } },250);
+}
+function shareStatus(sid){
+  const all=_statusFeed.find(s=>s.id===sid); if(!all){toast('Cannot share');return;}
+  if(!all.allow_share){toast('The poster disabled sharing');return;}
+  // re-post to own status
+  if(!confirm('Share this to your own status?'))return;
+  postStatus(all.type, all.payload);
 }

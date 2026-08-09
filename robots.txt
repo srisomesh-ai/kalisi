@@ -1,0 +1,3 @@
+User-agent: *
+Disallow: /panel-x7k9/
+Disallow: /api/

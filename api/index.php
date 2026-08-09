@@ -45,6 +45,8 @@ try {
     case 'status_view':   statusView($pdo, $in); break;
     case 'status_viewers': statusViewers($pdo, $in); break;
     case 'status_delete':  statusDelete($pdo, $in); break;
+    case 'status_react':   statusReact($pdo, $in); break;
+    case 'status_reactions': statusReactions($pdo, $in); break;
     case 'ping':      out(true, ['pong' => time()]); break;
     default:          out(false, ['error' => 'unknown_action']);
   }
@@ -267,6 +269,34 @@ function statusDelete(PDO $pdo, array $in): void {
   out(true, ['deleted'=>$sid]);
 }
 
+function statusReact(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $sid = (int)($in['status_id'] ?? 0);
+  $emoji = substr(trim((string)($in['emoji'] ?? '❤')), 0, 8);
+  if ($sid<=0) out(false,['error'=>'bad_input']);
+  // toggle: if same reaction exists remove it, else set
+  $st=$pdo->prepare("SELECT emoji FROM k_status_reacts WHERE status_id=? AND reactor=?");
+  $st->execute([$sid,$me['kal_id']]); $ex=$st->fetch();
+  if ($ex && $ex['emoji']===$emoji) {
+    $pdo->prepare("DELETE FROM k_status_reacts WHERE status_id=? AND reactor=?")->execute([$sid,$me['kal_id']]);
+    out(true,['toggled'=>'off']);
+  }
+  $pdo->prepare("INSERT INTO k_status_reacts (status_id,reactor,emoji,created_at) VALUES (?,?,?,NOW())
+                 ON DUPLICATE KEY UPDATE emoji=VALUES(emoji), created_at=NOW()")
+      ->execute([$sid,$me['kal_id'],$emoji]);
+  out(true,['toggled'=>'on','emoji'=>$emoji]);
+}
+function statusReactions(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $sid = (int)($in['status_id'] ?? 0);
+  $st=$pdo->prepare("SELECT r.emoji, r.reactor, u.username, u.name FROM k_status_reacts r
+                     JOIN k_users u ON u.kal_id=r.reactor WHERE r.status_id=? ORDER BY r.created_at DESC");
+  $st->execute([$sid]);
+  $rows=$st->fetchAll();
+  $mine=null; foreach($rows as $r){ if($r['reactor']===$me['kal_id'])$mine=$r['emoji']; }
+  out(true,['reactions'=>$rows,'mine'=>$mine,'count'=>count($rows)]);
+}
+
 function blockUser(PDO $pdo, array $in): void {
   $me = auth($pdo, $in);
   $t = strtoupper(trim((string)($in['kal_id'] ?? '')));
@@ -286,8 +316,10 @@ function statusPost(PDO $pdo, array $in): void {
   $type = in_array(($in['type'] ?? ''), ['text','photo','voice']) ? $in['type'] : 'text';
   $payload = (string)($in['payload'] ?? '');   // encrypted or plain small blob; capped
   if ($payload === '' || strlen($payload) > 1500000) out(false, ['error' => 'bad_input']);
-  $pdo->prepare('INSERT INTO k_status (kal_id, type, payload, created_at) VALUES (?,?,?,NOW())')
-      ->execute([$me['kal_id'], $type, $payload]);
+  $allowShare = !empty($in['allow_share']) ? 1 : 0;
+  try { $pdo->exec("ALTER TABLE k_status ADD COLUMN allow_share TINYINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+  $pdo->prepare('INSERT INTO k_status (kal_id, type, payload, allow_share, created_at) VALUES (?,?,?,?,NOW())')
+      ->execute([$me['kal_id'], $type, $payload, $allowShare]);
   // keep only last 24h per user
   $pdo->prepare('DELETE FROM k_status WHERE created_at < (NOW() - INTERVAL 24 HOUR)')->execute();
   out(true, ['posted' => true]);
@@ -301,6 +333,7 @@ function statusFeed(PDO $pdo, array $in): void {
   if (!$ids) out(true, ['status' => []]);
   $ph = implode(',', array_fill(0, count($ids), '?'));
   $st = $pdo->prepare("SELECT s.id, s.kal_id, s.type, s.payload, s.created_at, u.username, u.name,
+                       s.allow_share,
                        (SELECT COUNT(*) FROM k_status_views v WHERE v.status_id=s.id) AS views
                        FROM k_status s JOIN k_users u ON u.kal_id = s.kal_id
                        WHERE s.kal_id IN ($ph) AND s.created_at > (NOW() - INTERVAL 24 HOUR)
@@ -309,7 +342,7 @@ function statusFeed(PDO $pdo, array $in): void {
   $rows = array_map(fn($r)=>[
     'id'=>(int)$r['id'],'kal_id'=>$r['kal_id'],'username'=>$r['username'],'name'=>$r['name'],
     'type'=>$r['type'],'payload'=>$r['payload'],'ts'=>strtotime($r['created_at'])*1000,
-    'views'=>(int)$r['views']
+    'views'=>(int)$r['views'],'allow_share'=>(int)($r['allow_share']??0)
   ], $st->fetchAll());
   out(true, ['status' => $rows]);
 }
@@ -413,6 +446,13 @@ function migrate(PDO $pdo): void {
     viewer VARCHAR(14) NOT NULL,
     created_at DATETIME NOT NULL,
     PRIMARY KEY (status_id, viewer)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_status_reacts (
+    status_id BIGINT NOT NULL,
+    reactor VARCHAR(14) NOT NULL,
+    emoji VARCHAR(8) NOT NULL DEFAULT '❤',
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (status_id, reactor)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   $pdo->exec("CREATE TABLE IF NOT EXISTS k_groups (
     gid VARCHAR(16) PRIMARY KEY,

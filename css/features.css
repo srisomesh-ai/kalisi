@@ -67,3 +67,10 @@
 :root[data-theme=light] .brow.mine .bub{color:#141A2E}
 :root[data-theme=light] .tick.read{color:var(--gold-deep)}
 :root[data-theme=light] .avatar{color:#fff}
+
+/* status compose share + viewer actions */
+.st-share-opt{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);margin-bottom:12px;cursor:pointer}
+.st-share-opt input{width:17px;height:17px;accent-color:var(--gold)}
+.sv-actions{display:flex;gap:8px;padding:12px 14px;border-top:1px solid rgba(255,255,255,.1)}
+.sv-act{flex:1;color:#fff;font-size:14px;font-weight:600;padding:8px;border-radius:10px;background:rgba(255,255,255,.08)}
+.sv-act:active{background:rgba(255,255,255,.16)}

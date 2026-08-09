@@ -18,9 +18,10 @@ js/
   status.js           Status / stories (text, photo, voice, 24h)
   groups.js           Group chats (server-relayed)
   app.js              Main app logic (chats, contacts, personas, burn, etc.)
-admin/
-  index.html          Separate admin panel (own login)
-  api.php             Admin API: stats, list/enable/disable/delete users, list groups
+panel-x7k9/           Admin panel at obfuscated URL (see below)
+  index.html          Admin panel (own login)
+  api.php             Admin API: stats, list/enable/disable/delete users, groups
+admin/                Decoy 404 (real panel is at /panel-x7k9/)
 api/
   index.php           Relay-and-delete backend (register/lookup/send/fetch/check/ping)
   config.php          Loads DB_PASS from config.local.php (git-ignored)
@@ -38,3 +39,9 @@ Server password: create `api/config.local.php` on the server with `<?php define(
 1. ✅ Web prototype — modular, landing, voice
 2. Flutter Android app (real E2E, phone storage, push)
 3. Calls, groups, screenshot detection
+
+
+## Admin panel URL
+The admin panel lives at an obfuscated path for security: **/panel-x7k9/**
+(the plain /admin/ is a decoy 404). Change the folder name anytime by renaming it;
+robots.txt hides it from crawlers. Default login someswara / Kalisi@Admin2026 — change it.
