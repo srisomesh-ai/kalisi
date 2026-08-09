@@ -227,6 +227,7 @@ input,textarea,select{font-family:inherit;font-size:16px;color:var(--text)}
         </div>
         <button class="btn" style="margin-top:14px" onclick="obCreate()">Create my Kalisi ID</button>
         <p class="ob-note">No OTP. No SIM. No email. Nothing to verify.</p>
+        <button class="btn ghost" style="margin-top:10px" onclick="restorePick()">I have a backup — restore my account</button>
       </div>
       <div id="ob-step2" class="hide">
         <h1 class="ob-h1">This is <em>you.</em></h1>
@@ -347,6 +348,7 @@ input,textarea,select{font-family:inherit;font-size:16px;color:var(--text)}
     <div id="timer-opts"></div>
   </div>
 
+  <input type="file" id="restore-in" accept=".kbk,application/json" class="hide" onchange="restoreFile(this)">
   <div id="toast"></div>
 </div>
 <script>
@@ -2717,6 +2719,45 @@ async function netSendCtl(c,obj){ // control messages: read receipts, burn acks 
 /* ---- polling ---- */
 function startPoll(){ stopPoll(); pollTimer=setInterval(pollOnce,POLL_MS); pollOnce(); }
 function stopPoll(){ if(pollTimer)clearInterval(pollTimer); pollTimer=null; }
+
+/* ---- encrypted backup & restore ---- */
+async function pbkey(pass,salt){
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function backupData(){
+  const pass=prompt('Set a backup passphrase (you will need it to restore — keep it safe):');
+  if(!pass)return;
+  if(pass.length<4){toast('Passphrase too short');return;}
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await pbkey(pass,salt);
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(S)));
+  const pack={kalisi_backup:1,ts:now(),salt:b64(salt),iv:b64(iv),data:b64(ct)};
+  const blob=new Blob([JSON.stringify(pack)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='kalisi-backup-'+new Date().toISOString().slice(0,10)+'.kbk'; a.click();
+  toast('Backup saved 🔐 Keep the file + passphrase safe');
+}
+function restorePick(){ document.getElementById('restore-in').click(); }
+async function restoreFile(input){
+  const f=input.files[0]; input.value='';
+  if(!f)return;
+  let pack;
+  try{ pack=JSON.parse(await f.text()); }catch(e){ toast('Not a Kalisi backup file'); return; }
+  if(!pack||pack.kalisi_backup!==1||!pack.data){ toast('Not a Kalisi backup file'); return; }
+  const pass=prompt('Enter the backup passphrase:');
+  if(!pass)return;
+  try{
+    const key=await pbkey(pass,new Uint8Array(unb64(pack.salt)));
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:new Uint8Array(unb64(pack.iv))},key,unb64(pack.data));
+    const st=JSON.parse(new TextDecoder().decode(pt));
+    if(!st||!st.identities||!st.data)throw 0;
+    localStorage.setItem(LS_KEY,JSON.stringify(st));
+    toast('Restored ✅ Welcome back'); setTimeout(()=>location.reload(),900);
+  }catch(e){ toast('Wrong passphrase or corrupted file'); }
+}
+
 async function pollOnce(){
   if(!me()?.token)return;
   let res; try{ res=await api('fetch',authBody()); }catch(e){ return; }
@@ -3009,7 +3050,11 @@ async function renderPrivacy(){
     </div>
     <h3>My data</h3>
     <div class="pcard">
-      <div class="menu-it" onclick="exportData()">⬇ &nbsp;Export my data (JSON)</div>
+      <div class="ph">Changing phones?</div>
+      <div class="ps">Your account lives only on this phone. Save an encrypted backup, then restore it on the new phone — identity, friends and chats come back exactly as they are.</div>
+      <div class="menu-it" onclick="backupData()">🔐 &nbsp;Save encrypted backup file</div>
+      <div class="menu-it" onclick="restorePick()">📥 &nbsp;Restore from a backup file</div>
+      <div class="menu-it" onclick="exportData()">⬇ &nbsp;Export readable data (JSON)</div>
       <div class="menu-it red" onclick="wipeAll()">🗑 &nbsp;Wipe everything from this phone</div>
     </div>
     <p class="qr-sub" style="text-align:center;margin-top:4px">Kalisi prototype v0.1 · all data lives in this browser only</p>`;
