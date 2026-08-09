@@ -179,6 +179,11 @@ function renderChats(){
         ${ch.unread?`<div class="badge">${ch.unread}</div>`:''}
       </div>`;
     row.onclick=()=>openChat(c.id);
+    // long-press / right-click to manage the chat without opening it
+    let _lp; row.addEventListener('touchstart',()=>{ _lp=setTimeout(()=>openChatMenu(c.id),480); },{passive:true});
+    row.addEventListener('touchend',()=>clearTimeout(_lp));
+    row.addEventListener('touchmove',()=>clearTimeout(_lp));
+    row.addEventListener('contextmenu',e=>{ e.preventDefault(); openChatMenu(c.id); });
     list.appendChild(row);
   }
 }
@@ -425,8 +430,32 @@ function openChatMenu(cid){
       ? `<div class="menu-it" onclick="unblockContact('${c.kalId}');closeSheets()">✅ &nbsp;Unblock ${esc(handleOf(c))}</div>`
       : `<div class="menu-it red" onclick="blockContact('${cid}')">🚫 &nbsp;Block ${esc(handleOf(c))}</div>`;
   }
+  items+=`<div class="menu-it" onclick="clearChatMsgs('${cid}')">🧹 &nbsp;Clear messages</div>`;
+  items+=`<div class="menu-it red" onclick="deleteChat('${cid}')">🗑 &nbsp;Delete chat</div>`;
   $('msgmenu-body').innerHTML=items+`<div class="menu-it" onclick="closeSheets()">Cancel</div>`;
   openSheet('sheet-msgmenu');
+}
+function clearChatMsgs(cid){
+  const c=contact(cid); if(!c)return;
+  if(!confirm('Clear all messages in this chat?\n\nThis empties the conversation on your phone only. The chat and contact stay.'))return;
+  const ch=chat(cid); ch.msgs=[]; ch.unread=0; save();
+  closeSheets(); if(curChat===cid)renderMsgs(false); renderChats();
+  toast('Messages cleared');
+}
+function deleteChat(cid){
+  const c=contact(cid); if(!c)return;
+  const name=c.name||handleOf(c)||'this chat';
+  if(!confirm('Delete '+name+'?\n\nThis removes the conversation and the contact from your phone. You can add them again later with their @username. Their copy is not affected.'))return;
+  // remove the chat's messages (chats is an object keyed by id)
+  if(D().chats[cid])delete D().chats[cid];
+  // remove the contact from the list
+  const pi=D().contacts.findIndex(x=>x.id===cid);
+  if(pi>=0)D().contacts.splice(pi,1);
+  save();
+  closeSheets();
+  if(curChat===cid)closeChat();
+  renderChats();
+  toast(name+' deleted');
 }
 function showGroupInfo(cid){
   const c=contact(cid);
