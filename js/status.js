@@ -27,11 +27,11 @@ function renderStatusList(){
   const grouped=groupStatus();
   const mineItems=grouped[mine];
   let html=`
-    <div class="status-mine" onclick="openMyStatusCompose()">
-      <div class="st-ring ${mineItems?'has':''}">${avatarHTML(me(),'')}</div>
-      <div class="st-mid"><div class="st-name">My status</div>
-        <div class="st-sub">${mineItems?mineItems.items.length+' update'+(mineItems.items.length>1?'s':''):'Tap to add status'}</div></div>
-      <button class="icon-btn">＋</button>
+    <div class="status-mine">
+      <div class="st-ring ${mineItems?'has':''}" onclick="${mineItems?'openMyStatus()':'openMyStatusCompose()'}">${avatarHTML(me(),'')}</div>
+      <div class="st-mid" onclick="${mineItems?'openMyStatus()':'openMyStatusCompose()'}"><div class="st-name">My status</div>
+        <div class="st-sub">${mineItems?mineItems.items.length+' update'+(mineItems.items.length>1?'s':'')+' · tap to view':'Tap to add status'}</div></div>
+      <button class="icon-btn" onclick="openMyStatusCompose()">＋</button>
     </div>`;
   const others=Object.values(grouped).filter(g=>g.user.kal_id!==mine);
   if(others.length){
@@ -52,6 +52,49 @@ function renderStatusList(){
 }
 function timeAgo(ts){ const s=(Date.now()-ts)/1000; if(s<60)return 'just now'; if(s<3600)return Math.floor(s/60)+'m ago'; if(s<86400)return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; }
 
+function openMyStatus(){
+  const grouped=groupStatus();
+  const g=grouped[me().kalId];
+  if(!g){ openMyStatusCompose(); return; }
+  const items=[...g.items].reverse();
+  let idx=0;
+  const render=()=>{
+    const it=items[idx];
+    let media='';
+    if(it.type==='text')media=`<div class="sv-text">${esc(it.payload)}</div>`;
+    else if(it.type==='photo')media=`<img class="sv-img" src="${it.payload}">`;
+    else if(it.type==='voice')media=`<div class="sv-voice"><button class="voice-play" onclick="new Audio('${it.payload}').play()">▶ Play voice</button></div>`;
+    $('status-view-body').innerHTML=`
+      <div class="sv-bars">${items.map((_,i)=>`<span class="${i<=idx?'on':''}"></span>`).join('')}</div>
+      <div class="sv-head">${avatarHTML(me(),'small')}<div><div class="sv-name">My status</div>
+        <div class="sv-time">${timeAgo(it.ts)}</div></div>
+        <button class="icon-btn" onclick="closeSheets()" style="margin-left:auto">✕</button></div>
+      <div class="sv-media" onclick="myStatusNext()">${media}</div>
+      <div class="sv-foot">
+        <button class="sv-viewers" onclick="showViewers(${it.id})">👁 ${it.views||0} view${(it.views||0)===1?'':'s'}</button>
+        <button class="sv-del" onclick="deleteStatus(${it.id})">🗑 Delete</button>
+      </div>`;
+  };
+  window.myStatusNext=()=>{ idx++; if(idx>=items.length){closeSheets();return;} render(); };
+  render();
+  openSheet('sheet-status-view');
+}
+async function showViewers(sid){
+  try{
+    const r=await api('status_viewers',{...authBody(),status_id:sid});
+    const list=r.viewers||[];
+    $('status-compose-body').innerHTML=`<h2>Viewed by ${list.length}</h2>`+
+      (list.length?list.map(v=>`<div class="prow"><span class="k">@${esc(v.username||'')} <span class="muted">${esc(v.name||'')}</span></span></div>`).join('')
+        :'<div class="ps" style="padding:14px">No views yet.</div>');
+    openSheet('sheet-status-compose');
+  }catch(e){ toast('Could not load viewers'); }
+}
+async function deleteStatus(sid){
+  if(!confirm('Delete this status update?'))return;
+  try{ await api('status_delete',{...authBody(),status_id:sid});
+    toast('Status deleted'); closeSheets(); refreshStatus();
+  }catch(e){ toast('Could not delete'); }
+}
 function openMyStatusCompose(){
   $('status-compose-body').innerHTML=`
     <h2>Add to my status</h2>
@@ -125,6 +168,7 @@ function viewStatus(kalId){
     if(it.type==='text')media=`<div class="sv-text">${esc(it.payload)}</div>`;
     else if(it.type==='photo')media=`<img class="sv-img" src="${it.payload}">`;
     else if(it.type==='voice')media=`<div class="sv-voice"><button class="voice-play" onclick="new Audio('${it.payload}').play()">▶ Play voice</button></div>`;
+    if(it.id&&me().token){ api('status_view',{...authBody(),status_id:it.id}).catch(()=>{}); }
     $('status-view-body').innerHTML=`
       <div class="sv-bars">${items.map((_,i)=>`<span class="${i<=idx?'on':''}"></span>`).join('')}</div>
       <div class="sv-head">${avatarHTML(c||{name:nm,color:'#7FA8F5'},'small')}<div><div class="sv-name">${esc(nm)}</div><div class="sv-time">${timeAgo(it.ts)}</div></div>

@@ -37,3 +37,18 @@
 .grp-pname{flex:1;font-size:14.5px}
 .grp-sender{font-size:12px;font-weight:700;color:var(--gold);margin-bottom:2px}
 .muted{color:var(--muted)}
+
+/* ============ Contact requests ============ */
+.req-row{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.req-row:last-child{border:none}
+.req-mid{flex:1;min-width:0}
+.req-name{font-weight:650;font-size:15px}
+.req-handle{color:var(--gold);font-family:var(--mono);font-size:12.5px;margin-top:1px}
+.req-acts{display:flex;gap:7px}
+.tab-badge{position:absolute;top:6px;margin-left:2px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--ember);color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+.tab{position:relative}
+
+/* status viewer footer */
+.sv-foot{display:flex;gap:10px;padding:14px;border-top:1px solid rgba(255,255,255,.1)}
+.sv-viewers{flex:1;color:#fff;font-size:14px;font-weight:600;text-align:left}
+.sv-del{color:var(--ember);font-size:14px;font-weight:600}

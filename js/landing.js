@@ -43,4 +43,5 @@ function showApp(){
   $('scr-main').classList.add('on');
   renderAll();
   startPoll();
+  if(typeof refreshRequests==='function')refreshRequests();
 }

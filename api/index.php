@@ -37,6 +37,13 @@ try {
     case 'group_create':  groupCreate($pdo, $in); break;
     case 'group_send':    groupSend($pdo, $in); break;
     case 'group_info':    groupInfo($pdo, $in); break;
+    case 'req_send':      reqSend($pdo, $in); break;
+    case 'req_list':      reqList($pdo, $in); break;
+    case 'req_act':       reqAct($pdo, $in); break;
+    case 'contacts_state': contactsState($pdo, $in); break;
+    case 'status_view':   statusView($pdo, $in); break;
+    case 'status_viewers': statusViewers($pdo, $in); break;
+    case 'status_delete':  statusDelete($pdo, $in); break;
     case 'ping':      out(true, ['pong' => time()]); break;
     default:          out(false, ['error' => 'unknown_action']);
   }
@@ -100,7 +107,12 @@ function send(PDO $pdo, array $in): void {
   $st = $pdo->prepare('SELECT 1 FROM k_users WHERE kal_id = ?'); $st->execute([$to]);
   if (!$st->fetch()) out(false, ['error' => 'recipient_not_found']);
   $st = $pdo->prepare('SELECT 1 FROM k_blocks WHERE blocker = ? AND blocked = ?'); $st->execute([$to, $me['kal_id']]);
-  if ($st->fetch()) { out(true, ['queued' => true]); } // silently drop (blocked) — sender sees normal ticks
+  if ($st->fetch()) { out(true, ['queued' => true]); } // silently drop (blocked)
+  // contact-request gate: must be accepted in either direction (groups bypass via gid handled in group_send)
+  $st = $pdo->prepare("SELECT status FROM k_contacts WHERE (a=? AND b=?) OR (a=? AND b=?) LIMIT 1");
+  $st->execute([$me['kal_id'],$to,$to,$me['kal_id']]);
+  $rel = $st->fetch();
+  if (!$rel || $rel['status'] !== 'accepted') out(false, ['error' => 'not_connected']);
   $st = $pdo->prepare('INSERT INTO k_queue (to_id, from_id, client_id, iv, payload, created_at) VALUES (?,?,?,?,?,NOW())');
   $st->execute([$to, $me['kal_id'], $cid, $iv, $blob]);
   out(true, ['queued' => true]);
@@ -145,6 +157,92 @@ function checkUsername(PDO $pdo, array $in): void {
   out(true, ['available' => $avail]);
 }
 
+function reqSend(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $to = strtoupper(trim((string)($in['to'] ?? '')));
+  if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $to) || $to === $me['kal_id']) out(false, ['error' => 'bad_id']);
+  $st = $pdo->prepare('SELECT 1 FROM k_users WHERE kal_id = ?'); $st->execute([$to]);
+  if (!$st->fetch()) out(false, ['error' => 'not_found']);
+  // blocked?
+  $st = $pdo->prepare('SELECT 1 FROM k_blocks WHERE blocker=? AND blocked=?'); $st->execute([$to,$me['kal_id']]);
+  if ($st->fetch()) out(true, ['sent' => true]); // pretend, but drop
+  // already a relation?
+  $st = $pdo->prepare("SELECT status,a,b FROM k_contacts WHERE (a=? AND b=?) OR (a=? AND b=?) LIMIT 1");
+  $st->execute([$me['kal_id'],$to,$to,$me['kal_id']]);
+  $ex = $st->fetch();
+  if ($ex) {
+    if ($ex['status']==='accepted') out(true, ['already'=>'accepted']);
+    if ($ex['status']==='pending' && $ex['a']===$to) {
+      // they already requested me → accept automatically
+      $pdo->prepare("UPDATE k_contacts SET status='accepted' WHERE a=? AND b=?")->execute([$to,$me['kal_id']]);
+      out(true, ['auto_accepted'=>true]);
+    }
+    out(true, ['already'=>$ex['status']]);
+  }
+  $pdo->prepare("INSERT INTO k_contacts (a,b,status,created_at) VALUES (?,?,'pending',NOW())")->execute([$me['kal_id'],$to]);
+  out(true, ['sent' => true]);
+}
+function reqList(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  // incoming pending requests to me
+  $st = $pdo->prepare("SELECT c.a AS from_id, u.username, u.name, c.created_at
+                       FROM k_contacts c JOIN k_users u ON u.kal_id=c.a
+                       WHERE c.b=? AND c.status='pending' ORDER BY c.created_at DESC LIMIT 100");
+  $st->execute([$me['kal_id']]);
+  out(true, ['requests' => $st->fetchAll()]);
+}
+function reqAct(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $from = strtoupper(trim((string)($in['from'] ?? '')));
+  $act = ($in['act'] ?? '') === 'accept' ? 'accept' : 'reject';
+  if ($act === 'accept') {
+    $pdo->prepare("UPDATE k_contacts SET status='accepted' WHERE a=? AND b=?")->execute([$from,$me['kal_id']]);
+  } else {
+    $pdo->prepare("DELETE FROM k_contacts WHERE a=? AND b=?")->execute([$from,$me['kal_id']]);
+  }
+  out(true, ['ok'=>true, 'act'=>$act]);
+}
+function contactsState(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $st = $pdo->prepare("SELECT a,b,status FROM k_contacts WHERE a=? OR b=?");
+  $st->execute([$me['kal_id'],$me['kal_id']]);
+  $accepted=[]; $pendingOut=[];
+  foreach ($st->fetchAll() as $r) {
+    $other = $r['a']===$me['kal_id'] ? $r['b'] : $r['a'];
+    if ($r['status']==='accepted') $accepted[]=$other;
+    elseif ($r['a']===$me['kal_id']) $pendingOut[]=$other;
+  }
+  out(true, ['accepted'=>$accepted, 'pending_out'=>$pendingOut]);
+}
+
+function statusView(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $sid = (int)($in['status_id'] ?? 0);
+  if ($sid<=0) out(false,['error'=>'bad_input']);
+  $pdo->prepare("INSERT IGNORE INTO k_status_views (status_id, viewer, created_at) VALUES (?,?,NOW())")
+      ->execute([$sid, $me['kal_id']]);
+  out(true, ['viewed'=>true]);
+}
+function statusViewers(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $sid = (int)($in['status_id'] ?? 0);
+  // only the owner can see viewers
+  $st = $pdo->prepare("SELECT kal_id FROM k_status WHERE id=?"); $st->execute([$sid]);
+  $o = $st->fetch();
+  if (!$o || $o['kal_id'] !== $me['kal_id']) out(false, ['error'=>'not_owner']);
+  $st = $pdo->prepare("SELECT v.viewer, v.created_at, u.username, u.name FROM k_status_views v
+                       JOIN k_users u ON u.kal_id=v.viewer WHERE v.status_id=? ORDER BY v.created_at DESC");
+  $st->execute([$sid]);
+  out(true, ['viewers' => $st->fetchAll()]);
+}
+function statusDelete(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $sid = (int)($in['status_id'] ?? 0);
+  $pdo->prepare("DELETE FROM k_status WHERE id=? AND kal_id=?")->execute([$sid, $me['kal_id']]);
+  $pdo->prepare("DELETE FROM k_status_views WHERE status_id=?")->execute([$sid]);
+  out(true, ['deleted'=>$sid]);
+}
+
 function blockUser(PDO $pdo, array $in): void {
   $me = auth($pdo, $in);
   $t = strtoupper(trim((string)($in['kal_id'] ?? '')));
@@ -178,14 +276,16 @@ function statusFeed(PDO $pdo, array $in): void {
   $ids = array_values(array_unique(array_filter($ids, fn($x)=>preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', (string)$x))));
   if (!$ids) out(true, ['status' => []]);
   $ph = implode(',', array_fill(0, count($ids), '?'));
-  $st = $pdo->prepare("SELECT s.kal_id, s.type, s.payload, s.created_at, u.username, u.name
+  $st = $pdo->prepare("SELECT s.id, s.kal_id, s.type, s.payload, s.created_at, u.username, u.name,
+                       (SELECT COUNT(*) FROM k_status_views v WHERE v.status_id=s.id) AS views
                        FROM k_status s JOIN k_users u ON u.kal_id = s.kal_id
                        WHERE s.kal_id IN ($ph) AND s.created_at > (NOW() - INTERVAL 24 HOUR)
                        ORDER BY s.created_at DESC LIMIT 200");
   $st->execute($ids);
   $rows = array_map(fn($r)=>[
-    'kal_id'=>$r['kal_id'],'username'=>$r['username'],'name'=>$r['name'],
-    'type'=>$r['type'],'payload'=>$r['payload'],'ts'=>strtotime($r['created_at'])*1000
+    'id'=>(int)$r['id'],'kal_id'=>$r['kal_id'],'username'=>$r['username'],'name'=>$r['name'],
+    'type'=>$r['type'],'payload'=>$r['payload'],'ts'=>strtotime($r['created_at'])*1000,
+    'views'=>(int)$r['views']
   ], $st->fetchAll());
   out(true, ['status' => $rows]);
 }
@@ -276,6 +376,19 @@ function migrate(PDO $pdo): void {
     payload MEDIUMTEXT NOT NULL,
     created_at DATETIME NOT NULL,
     KEY idx_kal (kal_id), KEY idx_created (created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_contacts (
+    a VARCHAR(14) NOT NULL,
+    b VARCHAR(14) NOT NULL,
+    status VARCHAR(10) NOT NULL DEFAULT 'pending',
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (a,b), KEY idx_b (b)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_status_views (
+    status_id BIGINT NOT NULL,
+    viewer VARCHAR(14) NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (status_id, viewer)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   $pdo->exec("CREATE TABLE IF NOT EXISTS k_groups (
     gid VARCHAR(16) PRIMARY KEY,

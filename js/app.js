@@ -173,6 +173,7 @@ function renderChats(){
 function renderConnect(){
   const m=me();
   $('connect-body').innerHTML=`
+    <div id="req-inbox"></div>
     <h3>My code</h3>
     <div class="qr-card">
       <div class="myid">${esc(handleOf(m))}</div>
@@ -186,7 +187,7 @@ function renderConnect(){
     <h3>Add a friend</h3>
     <div class="addrow">
       <input id="add-id" placeholder="@username" maxlength="20" autocapitalize="none">
-      <button class="btn" onclick="addById()">Add</button>
+      <button class="btn" onclick="addById()">Send request</button>
     </div>
     <h3>One-time invite link</h3>
     <p class="qr-sub" style="text-align:left;margin:0 0 4px">Expires in 10 minutes, works exactly once, then dies. No spam possible.</p>
@@ -196,6 +197,7 @@ function renderConnect(){
       <div class="ttl" id="invite-ttl">10:00</div>
     </div>`;
   drawQR('qr-slot',handleOf(m));
+  renderRequestsInbox();
 }
 function drawQR(slotId,text){
   try{
@@ -231,13 +233,13 @@ async function addById(){
   const isKal=/^KAL-/i.test(v);
   if(isKal)v=v.toUpperCase(); else v=v.replace(/^@/,'').toLowerCase();
   if(v===me().kalId||v===me().username){toast("That's you 🙂");return;}
-  if(D().contacts.some(c=>c.kalId===v||c.username===v)){toast('Already in your contacts');return;}
   try{
-    const c=await connectReal(v);
-    $('add-id').value=''; toast('Connected to '+handleOf(c)+' ✅');
-    switchTab(document.querySelector('.tab[data-pane="pane-chats"]'));
-    openChat(c.id);
-  }catch(e){ toast(e.message==='not_found'?'No Kalisi user with that name':'Could not reach server'); }
+    const c=await sendRequest(v);
+    if(!c)return;
+    $('add-id').value='';
+    if(isAccepted(c.kalId)){ switchTab(document.querySelector('.tab[data-pane="pane-chats"]')); openChat(c.id); }
+    renderConnect();
+  }catch(e){ toast(e.message==='not_found'?'No Kalisi user with that name':(e.message==='bad_id'?'Invalid username':'Could not reach server')); }
 }
 function makeInvite(){
   const code=Math.random().toString(36).slice(2,8).toUpperCase();
@@ -355,6 +357,13 @@ async function addPersona(){
 function openChat(cid){
   curChat=cid; replyTo=null; burnOn=false; clearReply(); setBurnUI();
   const c=contact(cid), ch=chat(cid);
+  // pending (request not yet accepted) → lock composer
+  const pending = c.real && !c.isGroup && !isAccepted(c.kalId) && isPendingOut(c.kalId);
+  setTimeout(()=>{ const comp=$('composer'); if(comp) comp.style.display = pending ? 'none' : '';
+    let pb=$('pending-bar'); if(pending){ if(!pb){ pb=document.createElement('div'); pb.id='pending-bar';
+        pb.style.cssText='padding:14px;text-align:center;color:var(--muted);font-size:13.5px;background:var(--panel);border-top:1px solid var(--line)';
+        $('scr-chat').appendChild(pb);} pb.textContent='⏳ Request sent — you can chat once '+handleOf(c)+' accepts.'; pb.style.display='block';
+      } else if(pb){ pb.style.display='none'; } },0);
   if(c.real&&ch.unread>0){
     const ids=ch.msgs.filter(x=>x.from==='them').slice(-30).map(x=>x.id);
     if(ids.length)netSendCtl(c,{kind:'read',ids});
