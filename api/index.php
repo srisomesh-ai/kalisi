@@ -47,7 +47,6 @@ try {
     case 'status_delete':  statusDelete($pdo, $in); break;
     case 'status_react':   statusReact($pdo, $in); break;
     case 'status_reactions': statusReactions($pdo, $in); break;
-    case 'reset':     resetAll($pdo, $in); break;
     case 'ping':      out(true, ['pong' => time()]); break;
     default:          out(false, ['error' => 'unknown_action']);
   }
@@ -173,15 +172,6 @@ function changeUsername(PDO $pdo, array $in): void {
   $pdo->prepare('UPDATE k_users SET username = ?, username_changed_at = NOW() WHERE kal_id = ?')
       ->execute([$new, $me['kal_id']]);
   out(true, ['username' => $new]);
-}
-
-function resetAll(PDO $pdo, array $in): void {
-  $key = (string)($in['key'] ?? ($_GET['key'] ?? ''));
-  if ($key !== 'kalisi-wipe-9f3ax-2026') out(false, ['error' => 'bad_key']);
-  foreach (['k_queue','k_receipts','k_users','k_contacts','k_status','k_status_views','k_status_reacts','k_blocks','k_groups'] as $t) {
-    try { $pdo->exec("DELETE FROM $t"); } catch (Throwable $e) {}
-  }
-  out(true, ['reset' => true, 'message' => 'All Kalisi data wiped. Tell Claude to remove the reset endpoint.']);
 }
 
 function checkUsername(PDO $pdo, array $in): void {
