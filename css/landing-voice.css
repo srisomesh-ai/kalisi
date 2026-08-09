@@ -1,4 +1,23 @@
 /* ============ Landing page (trust-first, premium) ============ */
+
+/* Landing always uses its own dark palette regardless of app theme */
+#scr-landing{color:#EDEEF4}
+#scr-landing .hero-h1{color:#EDEEF4}
+#scr-landing .hero-sub{color:#8A91AB}
+#scr-landing .hero-sub b{color:#EDEEF4}
+#scr-landing .land-h2{color:#EDEEF4}
+#scr-landing .land-lede{color:#8A91AB}
+#scr-landing .land-login{color:#EDEEF4;border-color:#28304F}
+#scr-landing .land-logo{color:#EDEEF4}
+#scr-landing .feat h3{color:#EDEEF4}
+#scr-landing .feat p{color:#8A91AB}
+#scr-landing .how-step b{color:#EDEEF4}
+#scr-landing .how-step p{color:#8A91AB}
+#scr-landing .lq-text{color:#EDEEF4}
+#scr-landing .land-why-p{color:#8A91AB}
+#scr-landing .trust-line{color:#5A6180}
+#scr-landing .feat{background:linear-gradient(160deg,#161C30,#12172a);border-color:rgba(255,255,255,.06)}
+#scr-landing .hp-bubble.them{background:#1B2138;color:#EDEEF4}
 #scr-landing{background:
   radial-gradient(1200px 520px at 50% -200px, rgba(245,168,60,.16), transparent 62%),
   radial-gradient(760px 420px at 88% 6%, rgba(127,168,245,.10), transparent 58%),
