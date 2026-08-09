@@ -10,6 +10,7 @@ header('Access-Control-Allow-Headers: Content-Type');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
+set_error_handler(function($no,$str){ throw new ErrorException($str,0,$no); });
 require __DIR__ . '/config.php';
 
 try {
@@ -22,15 +23,19 @@ migrate($pdo);
 $in = json_decode(file_get_contents('php://input'), true) ?: [];
 $action = $in['action'] ?? ($_GET['action'] ?? '');
 
-switch ($action) {
-  case 'register':      register($pdo, $in); break;
-  case 'lookup':        lookup($pdo, $in); break;
-  case 'send':          send($pdo, $in); break;
-  case 'fetch':         fetchMsgs($pdo, $in); break;
-  case 'reset':        resetAll($pdo, $in); break;
-  case 'check':        checkUsername($pdo, $in); break;
-  case 'ping':          out(true, ['pong' => time()]); break;
-  default:              out(false, ['error' => 'unknown_action']);
+try {
+  switch ($action) {
+    case 'register':  register($pdo, $in); break;
+    case 'lookup':    lookup($pdo, $in); break;
+    case 'send':      send($pdo, $in); break;
+    case 'fetch':     fetchMsgs($pdo, $in); break;
+    case 'reset':     resetAll($pdo, $in); break;
+    case 'check':     checkUsername($pdo, $in); break;
+    case 'ping':      out(true, ['pong' => time()]); break;
+    default:          out(false, ['error' => 'unknown_action']);
+  }
+} catch (Throwable $e) {
+  out(false, ['error' => 'server_error', 'detail' => $e->getMessage()]);
 }
 
 /* ---------------- endpoints ---------------- */
@@ -123,14 +128,13 @@ function fetchMsgs(PDO $pdo, array $in): void {
   out(true, $out);
 }
 
-define('RESET_KEY', 'kalisi-wipe-9f3ax-2026');
 function resetAll(PDO $pdo, array $in): void {
   $key = (string)($in['key'] ?? ($_GET['key'] ?? ''));
-  if (!hash_equals(RESET_KEY, $key)) out(false, ['error' => 'bad_key']);
+  if ($key !== 'kalisi-wipe-9f3ax-2026') out(false, ['error' => 'bad_key']);
   $pdo->exec('DELETE FROM k_queue');
   $pdo->exec('DELETE FROM k_receipts');
   $pdo->exec('DELETE FROM k_users');
-  out(true, ['reset' => true, 'message' => 'All Kalisi accounts, messages and receipts wiped. Now DELETE this reset code from api/index.php.']);
+  out(true, ['reset' => true, 'message' => 'Wiped. Now tell Claude to remove the reset endpoint.']);
 }
 
 function checkUsername(PDO $pdo, array $in): void {
