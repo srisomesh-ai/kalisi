@@ -2,7 +2,7 @@
 function isBlocked(kalId){ return (S.blocked||[]).includes(kalId); }
 async function blockContact(cid){
   const c=contact(cid); if(!c)return;
-  if(!confirm("Block "+handleOf(c)+"? They won't be able to message you, and you won't see their messages or status."))return;
+  if(!await kConfirm({title:'Block '+handleOf(c)+'?',message:"They won't be able to message you, and you won't see their messages or status.",okText:'Block',danger:true}))return;
   S.blocked=S.blocked||[];
   if(!S.blocked.includes(c.kalId))S.blocked.push(c.kalId);
   save();

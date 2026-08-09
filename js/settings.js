@@ -82,7 +82,7 @@ function flipToggle(id){
 
 async function changeUsernameUI(){
   const cur=me().username||'';
-  const nn=prompt('New username (3–20 letters, numbers or _).\nYou can change this only once every 30 days.\n\nCurrent: @'+cur, cur);
+  const nn=await kPrompt({title:'Change username',message:'3–20 letters, numbers or _. You can change this once every 30 days.',value:cur,placeholder:'username',okText:'Change'});
   if(!nn)return;
   const clean=nn.trim().replace(/^@/,'').toLowerCase();
   if(!/^[a-z0-9_]{3,20}$/.test(clean)){ toast('3–20 letters, numbers or _'); return; }
@@ -101,7 +101,7 @@ async function changeUsernameUI(){
   }
 }
 function setPref(key,val){ S.set=S.set||{}; S.set[key]=val; save(); toast('Saved'); }
-function editName(){
-  const n=prompt('Display name:',me().name);
+async function editName(){
+  const n=await kPrompt({title:'Display name',value:me().name,placeholder:'Your name',okText:'Save'});
   if(n&&n.trim()){ me().name=n.trim(); save(); openSettings(); renderAll(); }
 }

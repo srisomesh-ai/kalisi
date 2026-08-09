@@ -62,7 +62,7 @@ async function connectReal(handle){
   const old=user.username?D().contacts.find(x=>x.username===user.username&&x.kalId!==user.kal_id):null;
   if(old&&!c){
     old.name=old.name+' (old)'; old.username=''; old.idChanged=true;
-    alert('⚠️ SECURITY WARNING\n\n@'+user.username+' is now a DIFFERENT person than before.\n\nThe previous @'+user.username+' let the name expire, and someone new has registered it. Their identity key does not match.\n\nDo NOT share anything private until you verify who this is — compare key fingerprints in person or on a call.');
+    kAlert({title:'⚠️ Identity changed',message:'@'+user.username+' is now a different person. The previous owner let the name expire and someone new registered it — their key does not match. Do not share anything private until you verify who this is.',okText:'Understood',danger:true});
   }
   if(!c){
     c={id:uid(),name:user.name,username:user.username||'',kalId:user.kal_id,color:COLORS[Math.floor(Math.random()*COLORS.length)],real:true,pubkey:user.pubkey};
@@ -93,7 +93,7 @@ async function pbkey(pass,salt){
 }
 async function backupData(){
   window._lastBackupOk=false;
-  const pass=prompt('Set a backup passphrase (you will need it to restore — keep it safe):');
+  const pass=await kPrompt({title:'Set a backup passphrase',message:'You will need this to restore your account. Keep it safe.',placeholder:'Choose a passphrase',password:true,okText:'Save backup'});
   if(!pass)return;
   if(pass.length<4){toast('Passphrase too short — try again');return;}
   const salt=crypto.getRandomValues(new Uint8Array(16));
@@ -114,7 +114,7 @@ async function restoreFile(input){
   let pack;
   try{ pack=JSON.parse(await f.text()); }catch(e){ toast('Not a Kalisi backup file'); return; }
   if(!pack||pack.kalisi_backup!==1||!pack.data){ toast('Not a Kalisi backup file'); return; }
-  const pass=prompt('Enter the backup passphrase:');
+  const pass=await kPrompt({title:'Enter backup passphrase',message:'The passphrase you set when creating this backup.',placeholder:'Passphrase',password:true,okText:'Restore'});
   if(!pass)return;
   try{
     const key=await pbkey(pass,new Uint8Array(unb64(pack.salt)));
@@ -150,7 +150,7 @@ async function pollOnce(){
       try{ const {user}=await api('lookup',{handle:c.kalId});
         c._pkCheck=JSON.stringify(user.pubkey)===JSON.stringify(c.pubkey);
         if(!c._pkCheck){ c.idChanged=true; save();
-          alert('⚠️ SECURITY WARNING\n\nThe encryption key for '+(c.username?'@'+c.username:c.name)+' has CHANGED. This should never happen.\n\nDo not send anything sensitive to this contact until you verify their identity in person.'); }
+          kAlert({title:'⚠️ Key changed',message:'The encryption key for '+(c.username?'@'+c.username:c.name)+' has changed. This should never happen normally. Verify their identity in person before sharing anything sensitive.',okText:'Understood',danger:true}); }
       }catch(e){}
     }
     let body; try{ body=await decryptFrom(c,pkt.iv,pkt.blob); }catch(e){ continue; }

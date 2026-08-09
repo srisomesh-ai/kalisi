@@ -91,7 +91,7 @@ async function showViewers(sid){
   }catch(e){ toast('Could not load viewers'); }
 }
 async function deleteStatus(sid){
-  if(!confirm('Delete this status update?'))return;
+  if(!await kConfirm({title:'Delete status?',message:'This removes your status update for everyone.',okText:'Delete',danger:true}))return;
   try{ await api('status_delete',{...authBody(),status_id:sid});
     toast('Status deleted'); closeSheets(); refreshStatus();
   }catch(e){ toast('Could not delete'); }
@@ -213,10 +213,10 @@ function replyToStatus(kalId,previewJson){
   setTimeout(()=>{ const inp=$('msg-in'); if(inp){ inp.value='Re: '+preview+'\n'; inp.focus();
     inp.dispatchEvent(new Event('input')); } },250);
 }
-function shareStatus(sid){
+async function shareStatus(sid){
   const all=_statusFeed.find(s=>s.id===sid); if(!all){toast('Cannot share');return;}
   if(!all.allow_share){toast('The poster disabled sharing');return;}
   // re-post to own status
-  if(!confirm('Share this to your own status?'))return;
+  if(!await kConfirm({title:'Share to your status?',message:'This re-posts it to your own status.',okText:'Share'}))return;
   postStatus(all.type, all.payload);
 }

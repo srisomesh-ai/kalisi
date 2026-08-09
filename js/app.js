@@ -93,7 +93,7 @@ async function obCreate(){
   }catch(e){
     if(e.message==='username_taken'){toast('@'+un+' is taken — try another');return;}
     if(e.message==='bad_username'){toast('Username: 3–20 letters, numbers or _');return;}
-    const demo=confirm('Server could not be reached, so a real account cannot be created right now.\n\nContinue in OFFLINE DEMO mode? (demo bots only — no real chatting, no @username reserved)');
+    const demo=await kConfirm({title:'Server unreachable',message:'A real account cannot be created right now. Continue in offline demo mode? (demo bots only — no real chatting, no @username reserved)',okText:'Demo mode',cancelText:'Cancel'});
     if(!demo)return;
   }
   const ident=seedIdentity(n,reg);
@@ -334,15 +334,13 @@ function exportData(){
   saveFile('kalisi-export.json', JSON.stringify(S,null,2));
   toast('Exported — this is ALL the data that exists.');
 }
-function logout(){
-  const ok=confirm("Log out?\n\nYour account exists ONLY on this phone. Without a backup file, logging out deletes it permanently — @username, keys, chats, everything.\n\nPress Cancel to save a backup first (Privacy → Save encrypted backup).");
+async function logout(){
+  const ok=await kConfirm({title:'Log out?',message:'Your account exists only on this phone. Without a backup, logging out deletes it permanently — your @username, keys and chats. Auto-backup keeps a copy in Downloads.',okText:'Log out',cancelText:'Stay',danger:true});
   if(!ok)return;
-  const sure=confirm("Last check: do you have your backup file saved somewhere safe?");
-  if(!sure){ toast('Save a backup first — then log out'); return; }
   localStorage.removeItem(LS_KEY); location.reload();
 }
-function wipeAll(){
-  if(!confirm('Delete every persona, contact and message from this phone? This cannot be undone.'))return;
+async function wipeAll(){
+  if(!await kConfirm({title:'Wipe everything?',message:'Delete every persona, contact and message from this phone? This cannot be undone.',okText:'Wipe all',danger:true}))return;
   localStorage.removeItem(LS_KEY); location.reload();
 }
 
@@ -443,17 +441,19 @@ function openChatMenu(cid){
   $('msgmenu-body').innerHTML=items+`<div class="menu-it" onclick="closeSheets()">Cancel</div>`;
   openSheet('sheet-msgmenu');
 }
-function clearChatMsgs(cid){
+async function clearChatMsgs(cid){
   const c=contact(cid); if(!c)return;
-  if(!confirm('Clear all messages in this chat?\n\nThis empties the conversation on your phone only. The chat and contact stay.'))return;
+  closeSheets();
+  if(!await kConfirm({title:'Clear messages?',message:'This empties the conversation on your phone only. The chat and contact stay.',okText:'Clear',cancelText:'Cancel'}))return;
   const ch=chat(cid); ch.msgs=[]; ch.unread=0; save();
   closeSheets(); if(curChat===cid)renderMsgs(false); renderChats();
   toast('Messages cleared');
 }
-function deleteChat(cid){
+async function deleteChat(cid){
   const c=contact(cid); if(!c)return;
   const name=c.name||handleOf(c)||'this chat';
-  if(!confirm('Delete '+name+'?\n\nThis removes the conversation and the contact from your phone. You can add them again later with their @username. Their copy is not affected.'))return;
+  closeSheets();
+  if(!await kConfirm({title:'Delete '+name+'?',message:'This removes the conversation and the contact from your phone. You can add them again later with their @username. Their copy is not affected.',okText:'Delete',danger:true}))return;
   // remove the chat's messages (chats is an object keyed by id)
   if(D().chats[cid])delete D().chats[cid];
   // remove the contact from the list
