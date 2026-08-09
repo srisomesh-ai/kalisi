@@ -55,6 +55,19 @@
 .land-final .hero-start{max-width:330px;margin:0 auto}
 .land-foot{color:var(--faint);font-size:12px;line-height:1.7;margin-top:26px}
 
+
+/* ============ Why Kalisi — use cases ============ */
+.uc-list{display:grid;gap:13px}
+.uc{display:flex;gap:14px;background:linear-gradient(160deg,rgba(22,28,48,.9),rgba(18,23,40,.7));border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:16px 16px 17px}
+.uc-ic{flex:none;width:44px;height:44px;border-radius:12px;background:rgba(245,168,60,.12);display:flex;align-items:center;justify-content:center;font-size:22px}
+.uc-body{flex:1;min-width:0}
+.uc-body b{font-size:15.5px;letter-spacing:-.01em}
+.uc-body p{color:var(--muted);font-size:13.5px;line-height:1.5;margin-top:5px}
+.uc-fix{display:block;color:var(--ok);margin-top:7px;font-weight:500}
+.land-why{padding:14px 24px 46px;text-align:center}
+.land-why-p{color:var(--muted);font-size:15px;line-height:1.62;max-width:400px;margin:0 auto}
+.land-why-p b{color:var(--gold)}
+
 /* ============ Voice messages ============ */
 .voice-bub{display:flex;align-items:center;gap:10px;min-width:180px}
 .voice-play{width:34px;height:34px;border-radius:50%;background:var(--gold);color:#20160A;display:flex;align-items:center;justify-content:center;flex:none}
