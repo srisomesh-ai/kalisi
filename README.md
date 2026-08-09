@@ -1,25 +1,33 @@
 # Kalisi — Private messenger. No phone number.
 
-**Always together, always private.** Kalisi (Telugu: కలిసి, "together") is a WhatsApp-class messenger where identity is a Kalisi ID (`KAL-XXXX-XXXX`) — no phone number, no OTP, no SIM, ever. Domain: kalisi.app
+**Always together, always private.** Kalisi (కలిసి, "together") — a WhatsApp-class messenger where identity is a @username, never a phone number. End-to-end encrypted; chats live only on your phone. Domain: kalisi.app
 
-**Web prototype (v0.1)** — Android-view webapp to test all features before the Flutter build.
+## Project structure
+```
+index.html            Shell: links CSS + JS modules, holds all screen markup
+css/
+  app.css             Core app styles (onboarding, chat, sheets, privacy)
+  landing-voice.css   Landing page + voice message styles
+js/
+  qrcode.js           QR generation library (vendored)
+  net.js              Server API + E2E crypto (ECDH/AES-GCM) + polling + backup/restore
+  voice.js            Voice message record & playback
+  landing.js          Landing page routing + login (restore) entry
+  app.js              Main app logic (chats, contacts, personas, burn, etc.)
+api/
+  index.php           Relay-and-delete backend (register/lookup/send/fetch/check/ping)
+  config.php          Loads DB_PASS from config.local.php (git-ignored)
+  config.local.example.php   Template for the server-only password file
+```
 
-## Why Kalisi
-- **No phone number, ever.** Your Kalisi ID is all anyone sees.
-- **Your phone is the server.** The relay deletes its copy the moment a message is delivered — with a cryptographic deletion receipt as proof.
-- **Burn-on-read** messages (view once, then destroyed).
-- **Personas** — multiple unlinkable identities on one phone (family / business / strangers).
-- **QR & one-time-link friending** — no searchable directory, zero spam.
-
-## In this prototype
-Onboarding (name → Kalisi ID), chat list + search, WhatsApp-style chat (ticks, typing, day chips, reply/quote, photos, delete for me/everyone), burn-on-read, disappearing messages (incl. 30s demo), personas, QR code, add by ID, expiring invite links, privacy dashboard, key fingerprint, export/wipe. Demo bots auto-reply for two-sided testing. All data in localStorage — nothing leaves the browser.
+## Features
+No-phone @username identity · true E2E encryption · relay-and-delete with real deletion receipts · burn-on-read (text, photo, voice) · **voice messages** · personas · QR / add-by-username · disappearing messages · encrypted backup & restore (= login on new device) · 90-day username reclaim · impersonation protection · attractive landing page.
 
 ## Run
-Open `index.html` — single file, no build. Deploy via Hostinger hPanel → Git.
+Open `index.html` via the web server (needs the css/ and js/ folders alongside). Deploy via Hostinger hPanel → Git.
+Server password: create `api/config.local.php` on the server with `<?php define('DB_PASS','...');`
 
 ## Roadmap
-1. ✅ Web prototype
-2. Server: relay + delete queue (Matrix Synapse on VPS or Node/WebSocket)
-3. Flutter Android app, real E2E encryption (libsignal / matrix SDK)
-4. Voice notes, calls, groups, screenshot detection
-5. Play Store: "Kalisi – Private Messenger"
+1. ✅ Web prototype — modular, landing, voice
+2. Flutter Android app (real E2E, phone storage, push)
+3. Calls, groups, screenshot detection
