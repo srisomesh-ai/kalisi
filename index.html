@@ -233,11 +233,18 @@ input,textarea,select{font-family:inherit;font-size:16px;color:var(--text)}
         <h1 class="ob-h1">This is <em>you.</em></h1>
         <div id="ob-card">
           <div class="card-eyebrow">Kalisi Identity</div>
-          <div class="card-id" id="ob-card-id">KAL-····-····</div>
+          <div class="card-id" id="ob-card-id">@····</div>
           <div class="card-name" id="ob-card-name"></div>
-          <div class="card-hint">Generated on this phone. Not linked to your SIM, email, or Aadhaar. Share it only with people you choose.</div>
+          <div class="card-hint">Generated on this phone. Not linked to your SIM, email, or Aadhaar.</div>
         </div>
-        <button class="btn" onclick="obEnter()">Enter Kalisi</button>
+        <div class="pcard" style="background:rgba(228,87,63,.08);border-color:rgba(228,87,63,.3);margin:0 0 16px">
+          <div class="ph" style="color:var(--ember)">⚠️ Save your recovery key now</div>
+          <div class="ps" style="color:var(--muted)">Your account lives only on this device. There is no password reset — if you clear this browser or switch phones without your recovery key, <b>this account is gone forever.</b> Save the key file first. Keep it safe; anyone with the key + passphrase can restore your account.</div>
+        </div>
+        <button class="btn" id="ob-savekey" onclick="obSaveKey()">🔐 Save my recovery key</button>
+        <script>setTimeout(function(){var e=document.getElementById('ob-skip');if(e&&document.getElementById('ob-enter-btn').classList.contains('hide'))e.classList.remove('hide');},6000);</script>
+        <button class="btn ghost hide" id="ob-enter-btn" style="margin-top:10px" onclick="obEnter()">✓ Saved it — Enter Kalisi</button>
+        <button class="btn ghost hide" id="ob-skip" style="margin-top:10px;color:var(--faint)" onclick="obSkipKey()">Skip for now (risky)</button>
       </div>
     </div>
   </div>
@@ -252,6 +259,10 @@ input,textarea,select{font-family:inherit;font-size:16px;color:var(--text)}
       </button>
     </div>
     <div class="tabpane on" id="pane-chats">
+      <div id="backup-nag" class="hide" style="margin:0 16px 10px;background:rgba(228,87,63,.1);border:1px solid rgba(228,87,63,.3);border-radius:11px;padding:10px 13px;font-size:13px;color:var(--text);display:flex;align-items:center;gap:10px">
+        <span style="flex:1">🔐 Your account isn't backed up. Save a recovery key so you never lose it.</span>
+        <button class="btn" style="width:auto;padding:8px 12px;font-size:13px" onclick="backupData()">Save</button>
+      </div>
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5A6180" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="chat-search" placeholder="Search chats" oninput="renderChats()">
@@ -2755,9 +2766,10 @@ async function pbkey(pass,salt){
   return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
 }
 async function backupData(){
+  window._lastBackupOk=false;
   const pass=prompt('Set a backup passphrase (you will need it to restore — keep it safe):');
   if(!pass)return;
-  if(pass.length<4){toast('Passphrase too short');return;}
+  if(pass.length<4){toast('Passphrase too short — try again');return;}
   const salt=crypto.getRandomValues(new Uint8Array(16));
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const key=await pbkey(pass,salt);
@@ -2767,6 +2779,8 @@ async function backupData(){
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='kalisi-backup-'+new Date().toISOString().slice(0,10)+'.kbk'; a.click();
   toast('Backup saved 🔐 Keep the file + passphrase safe');
+  window._lastBackupOk=true;
+  if(S){ S.lastBackup=now(); save(); }
 }
 function restorePick(){ document.getElementById('restore-in').click(); }
 async function restoreFile(input){
@@ -2925,10 +2939,26 @@ async function obCreate(){
   const ident=seedIdentity(n,reg);
   $('ob-card-id').textContent=ident.username?'@'+ident.username:ident.kalId;
   $('ob-card-name').textContent=n+' · '+ident.kalId;
+  window._keySaved=false;
   $('ob-step1').classList.add('hide');
   $('ob-step2').classList.remove('hide');
 }
-function obEnter(){ $('scr-onboard').classList.remove('on'); $('scr-main').classList.add('on'); renderAll(); startPoll(); }
+async function obSaveKey(){
+  await backupData();               // reuse encrypted backup (passphrase-protected)
+  if(window._lastBackupOk){
+    window._keySaved=true;
+    $('ob-savekey').classList.add('hide');
+    $('ob-enter-btn').classList.remove('hide');
+    $('ob-skip').classList.add('hide');
+  }
+}
+function obSkipKey(){
+  if(confirm('Really skip? If this browser is cleared before you save a backup, @'+(me().username||'')+' and all its chats are lost permanently and cannot be recovered by anyone — not even Kalisi.')) obEnter();
+}
+function obEnter(){
+  $('scr-onboard').classList.remove('on'); $('scr-main').classList.add('on'); renderAll(); startPoll();
+  if(!window._keySaved) setTimeout(()=>toast('⚠️ No recovery key saved yet — do it soon in Privacy → Save backup'),900);
+}
 
 /* ---------- main shell ---------- */
 function switchTab(btn){
@@ -2954,6 +2984,7 @@ function lastMsgPreview(msgs){
   return (m.from==='me'?'You: ':'')+m.text;
 }
 function renderChats(){
+  const nag=$('backup-nag'); if(nag){ nag.classList.toggle('hide', !!(S&&S.lastBackup)||!me()?.token); }
   const q=($('chat-search').value||'').toLowerCase();
   const list=$('chat-list'); list.innerHTML='';
   const rows=D().contacts
