@@ -5,9 +5,11 @@
 let _secureActive=false;
 
 function secureOn(){
-  _secureActive=true;
-  // native app: real block
-  try{ if(window.KalisiSecure) window.KalisiSecure.postMessage('on'); }catch(e){}
+  // TEMPORARILY DISABLED so screenshots can be taken for the Play Store listing.
+  // To re-enable: uncomment the two lines below.
+  // _secureActive=true;
+  // try{ if(window.KalisiSecure) window.KalisiSecure.postMessage('on'); }catch(e){}
+  return;
 }
 function secureOff(){
   _secureActive=false;

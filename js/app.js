@@ -306,7 +306,7 @@ async function renderPrivacy(){
       <div class="prow"><span class="k">Disappearing messages</span>
         <select class="mini-select" onchange="S.defTimer=+this.value;save();toast('Default updated')">${timerOptions(S.defTimer||0)}</select></div>
       <div class="prow"><span class="k">Read receipts</span>${toggle('set_readReceipts',S.set?.readReceipts!==false)}</div>
-      <div class="prow"><span class="k">Screenshot protection</span><span class="pill rel">App only</span></div>
+      <div class="prow"><span class="k">Screenshot protection</span><span class="pill rel">Off</span></div>
     </div>
 
     <div class="sec-label">Encryption key</div>
@@ -526,7 +526,7 @@ function msgHTML(m,c){
   const burnCls=m.burn?' burnable':'';
   const burnBar=m.burn&&m.revealed?`<div class="burn-bar"><i style="animation:burnbar ${BURN_VIEW_S}s linear forwards"></i></div>`:'';
   const reacts=reactionChips(m);
-  return `<div class="brow ${side}"><div class="bub${burnCls}" data-mid="${m.id}">${inner}${burnBar}<div class="meta">${m.expireAt?'⌛ ':''}${fmtTime(m.ts)} ${ticks(m)}</div>${reacts}</div></div>`;
+  return `<div class="brow ${side}"><div class="bub-wrap"><div class="bub${burnCls}" data-mid="${m.id}">${inner}${burnBar}<div class="meta">${m.expireAt?'⌛ ':''}${fmtTime(m.ts)} ${ticks(m)}</div></div>${reacts}</div></div>`;
 }
 const BURN_VIEW_S=6;
 function onBubbleTap(mid){
