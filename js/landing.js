@@ -1,13 +1,24 @@
 /* ============ Kalisi landing + entry routing ============ */
 
 // Decide first screen: returning user with an account skips landing.
+function isNativeApp(){
+  return /KalisiApp/i.test(navigator.userAgent) || location.search.indexOf('app=1')>=0 || window.KalisiNative;
+}
 function bootRoute(){
   if(S && S.identities && S.identities.length){
     // existing account on this device → straight to app
     showApp();
     return true;
   }
-  // no account → show landing
+  if(isNativeApp()){
+    // inside the Android app: no marketing landing — go straight to create/login
+    document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
+    $('scr-onboard').classList.add('on');
+    $('ob-step1').classList.remove('hide');
+    $('ob-step2').classList.add('hide');
+    return false;
+  }
+  // web visitor, no account → show landing
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
   $('scr-landing').classList.add('on');
   return false;
