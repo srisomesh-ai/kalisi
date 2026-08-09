@@ -286,13 +286,19 @@ async function renderPrivacy(){
       <div class="priv-hero-s">End-to-end encrypted. No phone number. Nothing readable leaves your device.</div></div>
     </div>
 
-    <div class="sec-label">What our server can see</div>
-    <div class="pcard">
-      <div class="prow"><span class="k">Phone number</span><span class="pill no">Never asked</span></div>
-      <div class="prow"><span class="k">Contacts list</span><span class="pill no">Never uploaded</span></div>
-      <div class="prow"><span class="k">Message content</span><span class="pill no">Unreadable</span></div>
-      <div class="prow"><span class="k">Stored messages</span><span class="pill rel">Deleted on delivery</span></div>
-      <div class="prow"><span class="k">Your @username</span><span class="pill rel">Needed to route</span></div>
+    <button class="collapse-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+      <span class="ch-ic">🛡️</span>
+      <span class="ch-tx"><b>What our server can see</b><span class="ch-sub">Spoiler: almost nothing</span></span>
+      <span class="ch-ar">›</span>
+    </button>
+    <div class="collapse-bd">
+      <div class="pcard" style="margin-top:0">
+        <div class="prow"><span class="k">Phone number</span><span class="pill no">Never asked</span></div>
+        <div class="prow"><span class="k">Contacts list</span><span class="pill no">Never uploaded</span></div>
+        <div class="prow"><span class="k">Message content</span><span class="pill no">Unreadable</span></div>
+        <div class="prow"><span class="k">Stored messages</span><span class="pill rel">Deleted on delivery</span></div>
+        <div class="prow"><span class="k">Your @username</span><span class="pill rel">Needed to route</span></div>
+      </div>
     </div>
 
     <div class="sec-label">Chat defaults</div>
@@ -405,24 +411,26 @@ function openChat(cid){
 }
 function setSub(txt,typing){
   const s=$('chat-sub'); s.classList.toggle('typing',!!typing);
-  $('chat-sub-t').textContent=txt||('End-to-end encrypted · keys on this device'+(chat(curChat).timer?` · ⌛ ${timerLabel(chat(curChat).timer)}`:''));
+  // default subtitle is empty until presence loads (no encryption text)
+  $('chat-sub-t').textContent=txt||'';
 }
 async function fetchPresence(c){
-  if(!c.real||c.isGroup||!me().token)return;
-  if(!(S.set?.lastSeen!==false))return; // respect my own last-seen setting off? show anyway for others
+  if(!c.real||c.isGroup||!me().token){ $('chat-sub-t').textContent=''; return; }
   try{
     const r=await api('presence',{...authBody(),kal_id:c.kalId});
     if(curChat!==c.id)return;
+    if(typeof _typingFrom!=='undefined' && _typingFrom===c.id)return; // don't overwrite "typing…"
     const t=r.last_seen;
     const diff=(Date.now()-t)/1000;
     let s;
-    if(diff<90) s='online';
-    else if(diff<3600) s='last seen '+Math.floor(diff/60)+'m ago';
-    else if(diff<86400) s='last seen '+Math.floor(diff/3600)+'h ago';
-    else s='last seen '+Math.floor(diff/86400)+'d ago';
-    const sub=$('chat-sub'); if(sub)sub.classList.toggle('typing', s==='online');
+    if(diff<70) s='online';
+    else if(diff<3600){ const m=Math.max(1,Math.floor(diff/60)); s='last seen '+m+' min ago'; }
+    else if(diff<86400){ const h=Math.floor(diff/3600); s='last seen '+h+' hour'+(h>1?'s':'')+' ago'; }
+    else if(diff<7*86400){ const d=Math.floor(diff/86400); s='last seen '+d+' day'+(d>1?'s':'')+' ago'; }
+    else s='last seen recently';
+    const sub=$('chat-sub'); if(sub)sub.classList.toggle('online', s==='online');
     $('chat-sub-t').textContent=s;
-  }catch(e){}
+  }catch(e){ $('chat-sub-t').textContent=''; }
 }
 function timerLabel(t){return {21600:'6h',43200:'12h',86400:'24h',604800:'7d',2592000:'30d'}[t]||'off';}
 function openChatMenu(cid){

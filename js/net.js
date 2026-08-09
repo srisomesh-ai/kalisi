@@ -192,6 +192,8 @@ async function pollOnce(){
   // periodically refresh contact requests (every ~4th poll)
   refreshRequests();
   if(typeof autoBackup==='function')autoBackup();  // throttled to once/30min, app only
+  // refresh chat-header presence (online/last seen) while a chat is open
+  if(curChat && typeof fetchPresence==='function'){ const cc=contact(curChat); if(cc && cc.real && !cc.isGroup)fetchPresence(cc); }
 }
 
 /* ---- incoming group message ---- */

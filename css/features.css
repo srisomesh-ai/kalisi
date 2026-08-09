@@ -149,3 +149,21 @@
 .kd-btn.primary{background:linear-gradient(135deg,#F5A83C,#E4573F);color:#fff}
 .kd-btn.danger{background:var(--ember);color:#fff}
 .kd-btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+
+/* ============ Collapsible section (Privacy dropdown) ============ */
+.collapse-hd{display:flex;align-items:center;gap:13px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 16px;cursor:pointer;text-align:left;transition:background .15s}
+.collapse-hd:active{background:var(--panel2)}
+.ch-ic{font-size:20px;flex:none}
+.ch-tx{flex:1;display:flex;flex-direction:column;gap:2px}
+.ch-tx b{font-size:15px;color:var(--text)}
+.ch-sub{font-size:12.5px;color:var(--muted)}
+.ch-ar{font-size:22px;color:var(--faint);transition:transform .2s}
+.collapse-hd.open .ch-ar{transform:rotate(90deg)}
+.collapse-bd{max-height:0;overflow:hidden;transition:max-height .28s ease;margin-top:0}
+.collapse-bd.open{max-height:400px;margin-top:10px}
+
+/* Chat header presence: green dot when online */
+#chat-sub.online #chat-sub-t{color:#3DA96E;font-weight:600}
+#chat-sub.online::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#3DA96E;margin-right:5px;vertical-align:middle}
+:root[data-theme=dark] #chat-sub.online #chat-sub-t{color:#59C98D}
+:root[data-theme=dark] #chat-sub.online::before{background:#59C98D}
