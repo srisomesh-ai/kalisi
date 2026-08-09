@@ -44,7 +44,6 @@ try {
     case 'contacts_state': contactsState($pdo, $in); break;
     case 'presence':      presence($pdo, $in); break;
     case 'fcm_register':  fcmRegister($pdo, $in); break;
-    case 'fcm_register':  fcmRegister($pdo, $in); break;
     case 'status_view':   statusView($pdo, $in); break;
     case 'status_viewers': statusViewers($pdo, $in); break;
     case 'status_delete':  statusDelete($pdo, $in); break;
@@ -304,16 +303,6 @@ function fcmAccessToken(): ?string {
   return $j['access_token'] ?? null;
 }
 
-function fcmRegister(PDO $pdo, array $in): void {
-  $me = auth($pdo, $in);
-  $token = trim((string)($in['fcm_token'] ?? ''));
-  if ($token === '' || strlen($token) > 255) out(false, ['error'=>'bad_token']);
-  $pdo->prepare('INSERT INTO k_fcm (kal_id, token, updated_at) VALUES (?,?,NOW())
-                 ON DUPLICATE KEY UPDATE kal_id=VALUES(kal_id), updated_at=NOW()')
-      ->execute([$me['kal_id'], $token]);
-  out(true, ['registered'=>true]);
-}
-
 function presence(PDO $pdo, array $in): void {
   $me = auth($pdo, $in);
   $kid = strtoupper(trim((string)($in['kal_id'] ?? '')));
@@ -530,12 +519,6 @@ function migrate(PDO $pdo): void {
     created_at DATETIME NOT NULL,
     PRIMARY KEY (status_id, viewer)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-  $pdo->exec("CREATE TABLE IF NOT EXISTS k_fcm (
-    kal_id VARCHAR(14) NOT NULL,
-    token VARCHAR(255) NOT NULL,
-    updated_at DATETIME NOT NULL,
-    PRIMARY KEY (token), KEY idx_kal (kal_id)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   $pdo->exec("CREATE TABLE IF NOT EXISTS k_status_reacts (
     status_id BIGINT NOT NULL,
     reactor VARCHAR(14) NOT NULL,
@@ -568,65 +551,6 @@ function migrate(PDO $pdo): void {
     created_at DATETIME NOT NULL,
     KEY idx_to (to_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-}
-
-function sendPush(PDO $pdo, string $toKal, string $fromKal): void {
-  $keyFile = __DIR__ . '/fcm-key.json';
-  if (!file_exists($keyFile)) return; // push not configured yet
-  $st = $pdo->prepare('SELECT token FROM k_fcm WHERE kal_id = ?'); $st->execute([$toKal]);
-  $tokens = array_column($st->fetchAll(), 'token');
-  if (!$tokens) return;
-  // sender display name (encrypted content isn't shown; generic body preserves privacy)
-  $sn = $pdo->prepare('SELECT username FROM k_users WHERE kal_id = ?'); $sn->execute([$fromKal]);
-  $who = $sn->fetch(); $title = 'Kalisi'; $body = 'New message';
-  $access = fcmAccessToken($keyFile);
-  if (!$access) return;
-  $sa = json_decode(file_get_contents($keyFile), true);
-  $project = $sa['project_id'] ?? '';
-  foreach ($tokens as $t) {
-    $msg = ['message' => [
-      'token' => $t,
-      'notification' => ['title' => $title, 'body' => $body],
-      'android' => ['priority' => 'high', 'notification' => ['sound' => 'default', 'channel_id' => 'kalisi_messages']],
-      'data' => ['type' => 'message']
-    ]];
-    $ch = curl_init("https://fcm.googleapis.com/v1/projects/$project/messages:send");
-    curl_setopt_array($ch, [
-      CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true,
-      CURLOPT_HTTPHEADER => ['Authorization: Bearer '.$access, 'Content-Type: application/json'],
-      CURLOPT_POSTFIELDS => json_encode($msg), CURLOPT_TIMEOUT => 8,
-    ]);
-    $res = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
-    if ($code === 404 || $code === 400) { // stale token
-      $pdo->prepare('DELETE FROM k_fcm WHERE token = ?')->execute([$t]);
-    }
-  }
-}
-function fcmAccessToken(string $keyFile): ?string {
-  $sa = json_decode(file_get_contents($keyFile), true);
-  if (!$sa || empty($sa['client_email']) || empty($sa['private_key'])) return null;
-  $now = time();
-  $header = rtrim(strtr(base64_encode(json_encode(['alg'=>'RS256','typ'=>'JWT'])), '+/', '-_'), '=');
-  $claim = rtrim(strtr(base64_encode(json_encode([
-    'iss' => $sa['client_email'],
-    'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
-    'aud' => 'https://oauth2.googleapis.com/token',
-    'iat' => $now, 'exp' => $now + 3600,
-  ])), '+/', '-_'), '=');
-  $signInput = $header.'.'.$claim;
-  $sig = '';
-  openssl_sign($signInput, $sig, $sa['private_key'], 'SHA256');
-  $jwt = $signInput.'.'.rtrim(strtr(base64_encode($sig), '+/', '-_'), '=');
-  $ch = curl_init('https://oauth2.googleapis.com/token');
-  curl_setopt_array($ch, [
-    CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POSTFIELDS => http_build_query([
-      'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion' => $jwt,
-    ]), CURLOPT_TIMEOUT => 8,
-  ]);
-  $res = curl_exec($ch); curl_close($ch);
-  $j = json_decode($res, true);
-  return $j['access_token'] ?? null;
 }
 
 function out(bool $ok, array $data = []): void {

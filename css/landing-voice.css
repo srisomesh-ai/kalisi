@@ -92,3 +92,20 @@
 .rec-send{width:42px;height:42px;border-radius:50%;background:var(--gold);color:#20160A;display:flex;align-items:center;justify-content:center;flex:none}
 #mic-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none}
 #mic-btn:active{background:var(--panel2)}
+
+/* Landing is always dark — force light text regardless of app theme */
+#scr-landing .hero-h1{color:#EDEEF4}
+#scr-landing .hero-sub{color:#8A91AB}
+#scr-landing .hero-sub b{color:#EDEEF4}
+#scr-landing .land-h2{color:#EDEEF4}
+#scr-landing .land-lede{color:#8A91AB}
+#scr-landing .feat h3{color:#EDEEF4}
+#scr-landing .feat p{color:#8A91AB}
+#scr-landing .how-step b{color:#EDEEF4}
+#scr-landing .how-step p{color:#8A91AB}
+#scr-landing .lq-text{color:#EDEEF4}
+#scr-landing .land-login{color:#EDEEF4}
+#scr-landing .land-why-p{color:#8A91AB}
+#scr-landing .trust-line{color:#5A6180}
+#scr-landing .land-foot{color:#5A6180}
+#scr-landing .feat{background:linear-gradient(160deg,rgba(22,28,48,.9),rgba(18,23,40,.7));border-color:rgba(255,255,255,.06)}
