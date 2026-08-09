@@ -2919,7 +2919,8 @@ async function obCreate(){
   }catch(e){
     if(e.message==='username_taken'){toast('@'+un+' is taken — try another');return;}
     if(e.message==='bad_username'){toast('Username: 3–20 letters, numbers or _');return;}
-    toast('Server unreachable — offline demo mode');
+    const demo=confirm('Server could not be reached, so a real account cannot be created right now.\n\nContinue in OFFLINE DEMO mode? (demo bots only — no real chatting, no @username reserved)');
+    if(!demo)return;
   }
   const ident=seedIdentity(n,reg);
   $('ob-card-id').textContent=ident.username?'@'+ident.username:ident.kalId;
@@ -3032,6 +3033,7 @@ function simulateScan(){
   setTimeout(()=>{ botSend(c.id,'Hey! Scanned your QR, we are connected on Kalisi now 🙌'); },1200);
 }
 async function addById(){
+  if(!me().token){toast('⚠️ This account was created offline and cannot chat. Log out (Privacy tab) and sign up again.');return;}
   let v=$('add-id').value.trim();
   if(!v){toast('Type a @username');return;}
   const isKal=/^KAL-/i.test(v);
@@ -3263,7 +3265,13 @@ function pushMine(part){
   if(ch.timer)m.expireAt=now()+ch.timer*1000;
   ch.msgs.push(m); clearReply(); burnOn=false; setBurnUI(); save(); renderMsgs(true);
   if(c.real){
-    netSend(c,m).catch(()=>{ toast('Not sent — check internet'); });
+    netSend(c,m).catch(e=>{
+      if(e.message==='auth_required'||e.message==='auth_failed')
+        toast('⚠️ This account is not activated on the server — go to Privacy → Log out, then sign up fresh');
+      else if(e.message==='recipient_not_found')
+        toast('That account no longer exists on the server');
+      else toast('Not sent — check internet');
+    });
   }
   if(c.bot){
     setTimeout(async()=>{ m.status='delivered'; m.receipt=(await sha(m.id+m.ts)).slice(0,16); save(); if(curChat)renderMsgs(false); },700);
@@ -3360,6 +3368,7 @@ function closeSheets(){ $('backdrop').classList.remove('on'); document.querySele
     // reschedule pending expiries (active persona only)
     const d=S.data[S.active];for(const cid in d.chats){for(const m of d.chats[cid].msgs){if(m.expireAt)scheduleExpiry(m,cid);}}
     renderAll(); startPoll();
+    if(!me().token)setTimeout(()=>toast('⚠️ Offline demo account — sign up again to chat for real'),800);
   }
 })();
 </script>
