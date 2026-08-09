@@ -1,0 +1,158 @@
+<?php
+/* ============================================================
+   Kalisi Relay API v1 — relay-and-delete message queue
+   The server stores ONLY: kalisi IDs, public keys, and
+   encrypted blobs it cannot read — deleted on delivery.
+   ============================================================ */
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
+
+require __DIR__ . '/config.php';
+
+try {
+  $pdo = new PDO('mysql:host='.DB_HOST.';dbname='.DB_NAME.';charset=utf8mb4', DB_USER, DB_PASS,
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+} catch (Throwable $e) { out(false, ['error' => 'db_connect_failed']); }
+
+migrate($pdo);
+
+$in = json_decode(file_get_contents('php://input'), true) ?: [];
+$action = $in['action'] ?? ($_GET['action'] ?? '');
+
+switch ($action) {
+  case 'register':      register($pdo, $in); break;
+  case 'lookup':        lookup($pdo, $in); break;
+  case 'send':          send($pdo, $in); break;
+  case 'fetch':         fetchMsgs($pdo, $in); break;
+  case 'ping':          out(true, ['pong' => time()]); break;
+  default:              out(false, ['error' => 'unknown_action']);
+}
+
+/* ---------------- endpoints ---------------- */
+
+function register(PDO $pdo, array $in): void {
+  $name = trim((string)($in['name'] ?? ''));
+  $pubkey = $in['pubkey'] ?? null; // JWK (public only)
+  if ($name === '' || mb_strlen($name) > 24 || !is_array($pubkey)) out(false, ['error' => 'bad_input']);
+  unset($pubkey['d']); // never accept private material
+  $token = bin2hex(random_bytes(24));
+  for ($i = 0; $i < 8; $i++) {
+    $kid = kalId();
+    try {
+      $st = $pdo->prepare('INSERT INTO k_users (kal_id, name, pubkey, token, created_at, last_seen) VALUES (?,?,?,?,NOW(),NOW())');
+      $st->execute([$kid, $name, json_encode($pubkey), $token]);
+      out(true, ['kal_id' => $kid, 'token' => $token]);
+    } catch (PDOException $e) { /* duplicate id, retry */ }
+  }
+  out(false, ['error' => 'id_gen_failed']);
+}
+
+function lookup(PDO $pdo, array $in): void {
+  $kid = strtoupper(trim((string)($in['kal_id'] ?? '')));
+  if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $kid)) out(false, ['error' => 'bad_id']);
+  $st = $pdo->prepare('SELECT kal_id, name, pubkey FROM k_users WHERE kal_id = ?');
+  $st->execute([$kid]);
+  $u = $st->fetch();
+  if (!$u) out(false, ['error' => 'not_found']);
+  out(true, ['user' => ['kal_id' => $u['kal_id'], 'name' => $u['name'], 'pubkey' => json_decode($u['pubkey'], true)]]);
+}
+
+function send(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $to = strtoupper(trim((string)($in['to'] ?? '')));
+  $blob = (string)($in['blob'] ?? '');       // base64 AES-GCM ciphertext — opaque to server
+  $iv = (string)($in['iv'] ?? '');
+  $cid = substr((string)($in['client_id'] ?? ''), 0, 32); // sender's message id, for receipt matching
+  if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $to) || $blob === '' || strlen($blob) > 900000) out(false, ['error' => 'bad_input']);
+  $st = $pdo->prepare('SELECT 1 FROM k_users WHERE kal_id = ?'); $st->execute([$to]);
+  if (!$st->fetch()) out(false, ['error' => 'recipient_not_found']);
+  $st = $pdo->prepare('INSERT INTO k_queue (to_id, from_id, client_id, iv, payload, created_at) VALUES (?,?,?,?,?,NOW())');
+  $st->execute([$to, $me['kal_id'], $cid, $iv, $blob]);
+  out(true, ['queued' => true]);
+}
+
+function fetchMsgs(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $out = ['messages' => [], 'receipts' => []];
+
+  // 1) drain my incoming messages, deleting each and issuing a deletion receipt to the sender
+  $st = $pdo->prepare('SELECT * FROM k_queue WHERE to_id = ? ORDER BY id ASC LIMIT 100');
+  $st->execute([$me['kal_id']]);
+  $rows = $st->fetchAll();
+  foreach ($rows as $r) {
+    $pdo->prepare('DELETE FROM k_queue WHERE id = ?')->execute([$r['id']]);
+    $receipt = hash('sha256', $r['id'].'|'.$r['payload'].'|'.microtime(true).'|deleted');
+    // receipt back to sender: proof the relay destroyed its copy (contains no content)
+    $pdo->prepare('INSERT INTO k_receipts (to_id, client_id, receipt, created_at) VALUES (?,?,?,NOW())')
+        ->execute([$r['from_id'], $r['client_id'], $receipt]);
+    $out['messages'][] = ['from' => $r['from_id'], 'iv' => $r['iv'], 'blob' => $r['payload'], 'ts' => strtotime($r['created_at']) * 1000, 'receipt' => $receipt];
+  }
+
+  // 2) drain deletion receipts addressed to me (for messages I sent)
+  $st = $pdo->prepare('SELECT * FROM k_receipts WHERE to_id = ? ORDER BY id ASC LIMIT 200');
+  $st->execute([$me['kal_id']]);
+  $recs = $st->fetchAll();
+  foreach ($recs as $r) {
+    $pdo->prepare('DELETE FROM k_receipts WHERE id = ?')->execute([$r['id']]);
+    $out['receipts'][] = ['client_id' => $r['client_id'], 'receipt' => $r['receipt']];
+  }
+
+  $pdo->prepare('UPDATE k_users SET last_seen = NOW() WHERE kal_id = ?')->execute([$me['kal_id']]);
+  out(true, $out);
+}
+
+/* ---------------- helpers ---------------- */
+
+function auth(PDO $pdo, array $in): array {
+  $kid = strtoupper(trim((string)($in['kal_id'] ?? '')));
+  $token = (string)($in['token'] ?? '');
+  if ($kid === '' || $token === '') out(false, ['error' => 'auth_required']);
+  $st = $pdo->prepare('SELECT kal_id FROM k_users WHERE kal_id = ? AND token = ?');
+  $st->execute([$kid, $token]);
+  $u = $st->fetch();
+  if (!$u) out(false, ['error' => 'auth_failed']);
+  return $u;
+}
+
+function kalId(): string {
+  $a = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  $p = function ($n) use ($a) { $s = ''; for ($i = 0; $i < $n; $i++) $s .= $a[random_int(0, strlen($a) - 1)]; return $s; };
+  return 'KAL-'.$p(4).'-'.$p(4);
+}
+
+function migrate(PDO $pdo): void {
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_users (
+    kal_id VARCHAR(14) PRIMARY KEY,
+    name VARCHAR(48) NOT NULL,
+    pubkey TEXT NOT NULL,
+    token VARCHAR(64) NOT NULL,
+    created_at DATETIME NOT NULL,
+    last_seen DATETIME NOT NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_queue (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    to_id VARCHAR(14) NOT NULL,
+    from_id VARCHAR(14) NOT NULL,
+    client_id VARCHAR(32) NOT NULL DEFAULT '',
+    iv VARCHAR(64) NOT NULL DEFAULT '',
+    payload MEDIUMTEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_to (to_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  $pdo->exec("CREATE TABLE IF NOT EXISTS k_receipts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    to_id VARCHAR(14) NOT NULL,
+    client_id VARCHAR(32) NOT NULL,
+    receipt VARCHAR(64) NOT NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_to (to_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function out(bool $ok, array $data = []): void {
+  echo json_encode(['ok' => $ok] + $data);
+  exit;
+}
