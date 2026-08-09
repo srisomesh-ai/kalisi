@@ -191,6 +191,7 @@ async function pollOnce(){
   if(changed){ save(); if(curChat)renderMsgs(true); renderChats(); }
   // periodically refresh contact requests (every ~4th poll)
   refreshRequests();
+  if(typeof autoBackup==='function')autoBackup();  // throttled to once/30min, app only
 }
 
 /* ---- incoming group message ---- */
@@ -217,9 +218,12 @@ function handleGroupIncoming(gb){
 }
 
 /* #10 auto-backup (app): silently save an encrypted backup to Downloads, no prompt */
-async function autoBackup(){
+async function autoBackup(force){
   if(!(typeof isNativeApp==='function'&&isNativeApp()))return; // app only
   if(!S||!S.identities?.length)return;
+  // throttle: at most once every 30 min unless forced
+  if(!force){ const last=+localStorage.getItem('kalisi_autobackup_ts')||0; if(Date.now()-last<30*60*1000)return; }
+  localStorage.setItem('kalisi_autobackup_ts',String(Date.now()));
   try{
     // device-bound passphrase stored locally so restore is automatic on same device family
     let pass=localStorage.getItem('kalisi_autopass');

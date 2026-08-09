@@ -100,35 +100,26 @@ async function obCreate(){
   $('ob-card-id').textContent=ident.username?'@'+ident.username:ident.kalId;
   $('ob-card-name').textContent=n+' · '+ident.kalId;
   window._keySaved=false;
+  // No backup prompt for anyone. Account is created → mark backed-up (app auto-saves silently) and enter.
+  if(me()){ me().backedUp=true; save(); }
+  // brief confirmation card, then straight into the app
   $('ob-step1').classList.add('hide');
   $('ob-step2').classList.remove('hide');
-  // App: offer encrypted backup. Web: just enter, no forced download.
-  if(typeof isNativeApp==='function' && isNativeApp()){
-    $('ob-backup-block').classList.remove('hide');
-    $('ob-enter-web').classList.add('hide');
-    const skip=$('ob-skip'); if(skip){ setTimeout(()=>skip.classList.remove('hide'),4000); }
-  } else {
-    $('ob-backup-block').classList.add('hide');
-    $('ob-enter-web').classList.remove('hide');
-    if(me())me().backedUp=true; // web: no nag, treat as fine
-    save();
-  }
+  $('ob-backup-block')?.classList.add('hide');
+  const webBtn=$('ob-enter-web'); if(webBtn){ webBtn.classList.remove('hide'); }
 }
 async function obSaveKey(){
-  await backupData();               // reuse encrypted backup (passphrase-protected)
+  await backupData();
   if(window._lastBackupOk){
-    window._keySaved=true;
     const m=me(); if(m){m.backedUp=true; save();}
-    $('ob-savekey').classList.add('hide');
-    $('ob-enter-btn').classList.remove('hide');
-    $('ob-skip').classList.add('hide');
-    toast('✅ Backup saved — tap Enter Kalisi');
+    toast('✅ Backup saved');
   }
 }
 function obSkipKey(){ obEnter(); }
 function obEnter(){
   showApp();
-  if(typeof isNativeApp==='function'&&isNativeApp()){ setTimeout(()=>{ if(typeof autoBackup==='function')autoBackup(); },1500); }
+  // silent auto-backup in the app (saves to Downloads via native channel, no dialog)
+  if(typeof isNativeApp==='function'&&isNativeApp()){ setTimeout(()=>{ if(typeof autoBackup==='function')autoBackup(true); },1500); }
 }
 
 /* ---------- main shell ---------- */
