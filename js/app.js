@@ -340,8 +340,7 @@ function timerOptions(sel){
   return o.map(([v,l])=>`<option value="${v}" ${v===sel?'selected':''}>${l}</option>`).join('');
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kalisi-export.json'; a.click();
+  saveFile('kalisi-export.json', JSON.stringify(S,null,2));
   toast('Exported — this is ALL the data that exists.');
 }
 function logout(){

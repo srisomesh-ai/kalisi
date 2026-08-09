@@ -1,3 +1,15 @@
+/* Unified file save: native app → Downloads via channel; browser → <a download> */
+function saveFile(name, textData){
+  if(typeof isNativeApp==='function' && isNativeApp() && window.KalisiDownload){
+    try{ window.KalisiDownload.postMessage(JSON.stringify({name:name, data:textData})); return true; }catch(e){}
+  }
+  // browser fallback
+  const blob=new Blob([textData],{type:'application/octet-stream'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  return true;
+}
+
 /* Kalisi network + E2E crypto */
 /* ============ Kalisi network + E2E crypto layer ============ */
 const API='api/index.php';
@@ -89,9 +101,7 @@ async function backupData(){
   const key=await pbkey(pass,salt);
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(S)));
   const pack={kalisi_backup:1,ts:now(),salt:b64(salt),iv:b64(iv),data:b64(ct)};
-  const blob=new Blob([JSON.stringify(pack)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='kalisi-backup-'+new Date().toISOString().slice(0,10)+'.kbk'; a.click();
+  saveFile('kalisi-backup-'+new Date().toISOString().slice(0,10)+'.kbk', JSON.stringify(pack));
   window._lastBackupOk=true;
   if(S){ S.lastBackup=now(); const m=me(); if(m)m.backedUp=true; save(); }
   toast('Backup saved 🔐 Keep the file + passphrase safe');
@@ -219,9 +229,7 @@ async function autoBackup(){
     const key=await pbkey(pass,salt);
     const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(S)));
     const pack={kalisi_backup:1,auto:1,ts:now(),salt:b64(salt),iv:b64(iv),data:b64(ct)};
-    const blob=new Blob([JSON.stringify(pack)],{type:'application/json'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='Kalisi-backup.kbk'; a.click();
+    saveFile('Kalisi-backup.kbk', JSON.stringify(pack));
     if(S){ S.lastBackup=now(); const m=me(); if(m)m.backedUp=true; save(); }
   }catch(e){}
 }
