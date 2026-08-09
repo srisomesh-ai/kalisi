@@ -2,7 +2,7 @@
 
 // Decide first screen: returning user with an account skips landing.
 function isNativeApp(){
-  return /KalisiApp/i.test(navigator.userAgent) || location.search.indexOf('app=1')>=0 || window.KalisiNative;
+  return /KalisiApp/i.test(navigator.userAgent) || location.search.indexOf('app=1')>=0 || window.KalisiNative || window.KalisiBundled || location.protocol==='file:';
 }
 function bootRoute(){
   if(S && S.identities && S.identities.length){
