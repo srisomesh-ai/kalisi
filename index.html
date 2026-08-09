@@ -2778,9 +2778,10 @@ async function backupData(){
   const blob=new Blob([JSON.stringify(pack)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='kalisi-backup-'+new Date().toISOString().slice(0,10)+'.kbk'; a.click();
-  toast('Backup saved 🔐 Keep the file + passphrase safe');
   window._lastBackupOk=true;
-  if(S){ S.lastBackup=now(); save(); }
+  if(S){ S.lastBackup=now(); const m=me(); if(m)m.backedUp=true; save(); }
+  toast('Backup saved 🔐 Keep the file + passphrase safe');
+  const nag=$('backup-nag'); if(nag)nag.classList.add('hide');
 }
 function restorePick(){ document.getElementById('restore-in').click(); }
 async function restoreFile(input){
@@ -2947,9 +2948,11 @@ async function obSaveKey(){
   await backupData();               // reuse encrypted backup (passphrase-protected)
   if(window._lastBackupOk){
     window._keySaved=true;
+    const m=me(); if(m){m.backedUp=true; save();}
     $('ob-savekey').classList.add('hide');
     $('ob-enter-btn').classList.remove('hide');
     $('ob-skip').classList.add('hide');
+    toast('✅ Recovery key saved — tap Enter Kalisi');
   }
 }
 function obSkipKey(){
@@ -2984,7 +2987,7 @@ function lastMsgPreview(msgs){
   return (m.from==='me'?'You: ':'')+m.text;
 }
 function renderChats(){
-  const nag=$('backup-nag'); if(nag){ nag.classList.toggle('hide', !!(S&&S.lastBackup)||!me()?.token); }
+  const nag=$('backup-nag'); if(nag){ const m=me(); nag.classList.toggle('hide', !m||!m.token||!!m.backedUp); }
   const q=($('chat-search').value||'').toLowerCase();
   const list=$('chat-list'); list.innerHTML='';
   const rows=D().contacts
@@ -3061,6 +3064,7 @@ function simulateScan(){
   const c={id:uid(),name:pick[0],kalId:kalId(),color:pick[1],bot:true,brain:pick[2]};
   D().contacts.push(c); chat(c.id); save();
   toast(`${c.name} connected via QR ✅`); renderChats();
+  switchTab(document.querySelector('.tab[data-pane="pane-chats"]')); openChat(c.id);
   setTimeout(()=>{ botSend(c.id,'Hey! Scanned your QR, we are connected on Kalisi now 🙌'); },1200);
 }
 async function addById(){
@@ -3074,6 +3078,8 @@ async function addById(){
   try{
     const c=await connectReal(v);
     $('add-id').value=''; toast('Connected to '+handleOf(c)+' ✅');
+    switchTab(document.querySelector('.tab[data-pane="pane-chats"]'));
+    openChat(c.id);
   }catch(e){ toast(e.message==='not_found'?'No Kalisi user with that name':'Could not reach server'); }
 }
 function makeInvite(){
