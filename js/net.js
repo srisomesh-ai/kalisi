@@ -7,7 +7,7 @@ let pollTimer=null;
 async function api(action,body){
   const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...body})});
   let j; try{ j=await r.json(); }catch(e){ throw new Error('bad_response'); }
-  if(!j.ok)throw new Error(j.error||'api_error');
+  if(!j.ok){ const err=new Error(j.error||'api_error'); Object.assign(err,j); throw err; }
   return j;
 }
 function authBody(){const m=me();return{kal_id:m.kalId,token:m.token};}

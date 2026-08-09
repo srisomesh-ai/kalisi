@@ -10,9 +10,22 @@ function openSettings(){
       </div>
       <button class="icon-btn" onclick="editName()" aria-label="Edit name">✏️</button>
     </div>
+    <div class="pcard">
+      <div class="menu-it" onclick="changeUsernameUI()">＠ &nbsp;Change username <span class="muted" style="margin-left:auto;font-weight:400">once per 30 days</span></div>
+    </div>
+
+    <h3>Appearance</h3>
+    <div class="pcard">
+      <div class="prow"><span class="k">Theme</span>
+        <select onchange="applyTheme(this.value);toast('Theme updated')">
+          <option value="dark" ${(S.set?.theme||'dark')==='dark'?'selected':''}>Dark</option>
+          <option value="light" ${(S.set?.theme)==='light'?'selected':''}>Light</option>
+        </select></div>
+    </div>
 
     <h3>Privacy</h3>
     <div class="pcard">
+      <div class="prow"><span class="k">Mask phone numbers &amp; emails in chats</span>${toggle('set_mask',S.set?.noMask!==true)}</div>
       <div class="prow"><span class="k">Read receipts</span>${toggle('set_readReceipts',S.set?.readReceipts!==false)}</div>
       <div class="prow"><span class="k">Show last seen</span>${toggle('set_lastSeen',S.set?.lastSeen!==false)}</div>
       <div class="prow"><span class="k">Who can add me by username</span>
@@ -56,11 +69,33 @@ function toggle(id,on){ return `<button class="tgl ${on?'on':''}" id="${id}" onc
 function flipToggle(id){
   const key=id.replace('set_','');
   S.set=S.set||{};
-  S.set[key]=!$(id).classList.contains('on');
+  const nowOn=!$(id).classList.contains('on');
   $(id).classList.toggle('on');
+  if(key==='mask'){ S.set.noMask=!nowOn; }   // toggle ON = masking ON = noMask false
+  else { S.set[key]=nowOn; }
   save();
-  if(key==='defTimer'){}
   toast('Saved');
+}
+
+async function changeUsernameUI(){
+  const cur=me().username||'';
+  const nn=prompt('New username (3–20 letters, numbers or _).\nYou can change this only once every 30 days.\n\nCurrent: @'+cur, cur);
+  if(!nn)return;
+  const clean=nn.trim().replace(/^@/,'').toLowerCase();
+  if(!/^[a-z0-9_]{3,20}$/.test(clean)){ toast('3–20 letters, numbers or _'); return; }
+  if(clean===cur){ toast('That is already your username'); return; }
+  if(!me().token){ toast('Only real accounts can change username'); return; }
+  try{
+    const r=await api('change_username',{...authBody(),username:clean});
+    me().username=r.username; save();
+    toast('Username changed to @'+r.username+' ✅');
+    openSettings(); renderAll();
+  }catch(e){
+    const msg={too_soon:'You changed it recently — try again in '+(e.days||'a few')+' days',
+      username_taken:'@'+clean+' is taken', bad_username:'Invalid username',
+      same_username:'That is already your username'}[e.message]||'Could not change username';
+    toast(msg);
+  }
 }
 function setPref(key,val){ S.set=S.set||{}; S.set[key]=val; save(); toast('Saved'); }
 function editName(){

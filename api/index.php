@@ -30,6 +30,7 @@ try {
     case 'send':      send($pdo, $in); break;
     case 'fetch':     fetchMsgs($pdo, $in); break;
     case 'check':     checkUsername($pdo, $in); break;
+    case 'change_username': changeUsername($pdo, $in); break;
     case 'block':     blockUser($pdo, $in); break;
     case 'unblock':   unblockUser($pdo, $in); break;
     case 'status_post':   statusPost($pdo, $in); break;
@@ -146,6 +147,29 @@ function fetchMsgs(PDO $pdo, array $in): void {
 
   $pdo->prepare('UPDATE k_users SET last_seen = NOW() WHERE kal_id = ?')->execute([$me['kal_id']]);
   out(true, $out);
+}
+
+function changeUsername(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $new = strtolower(trim((string)($in['username'] ?? ''), " @"));
+  if (!preg_match('/^[a-z0-9_]{3,20}$/', $new)) out(false, ['error' => 'bad_username']);
+  // rate limit: once per 30 days
+  try { $pdo->exec("ALTER TABLE k_users ADD COLUMN username_changed_at DATETIME NULL"); } catch (Throwable $e) {}
+  $st = $pdo->prepare('SELECT username, username_changed_at FROM k_users WHERE kal_id = ?');
+  $st->execute([$me['kal_id']]); $u = $st->fetch();
+  if ($u['username'] === $new) out(false, ['error' => 'same_username']);
+  if (!empty($u['username_changed_at']) && strtotime($u['username_changed_at']) > time() - 30*86400) {
+    $days = ceil((strtotime($u['username_changed_at']) + 30*86400 - time()) / 86400);
+    out(false, ['error' => 'too_soon', 'days' => $days]);
+  }
+  // availability (respect 90-day reclaim)
+  $st = $pdo->prepare('SELECT last_seen FROM k_users WHERE username = ? AND kal_id <> ?');
+  $st->execute([$new, $me['kal_id']]); $ex = $st->fetch();
+  if ($ex && strtotime($ex['last_seen']) > time() - 90*86400) out(false, ['error' => 'username_taken']);
+  if ($ex) $pdo->prepare("UPDATE k_users SET username='' WHERE username=?")->execute([$new]);
+  $pdo->prepare('UPDATE k_users SET username = ?, username_changed_at = NOW() WHERE kal_id = ?')
+      ->execute([$new, $me['kal_id']]);
+  out(true, ['username' => $new]);
 }
 
 function checkUsername(PDO $pdo, array $in): void {

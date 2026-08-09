@@ -1,6 +1,11 @@
 /* ============ Kalisi prototype — all data stays in this browser ============ */
 'use strict';
-const APP_VERSION='v0.4';
+const APP_VERSION='v0.5';
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t==='light'?'light':'dark');
+  const meta=document.querySelector('meta[name=theme-color]'); if(meta)meta.setAttribute('content', t==='light'?'#F4F5FA':'#0D1120');
+  S=S||{}; S.set=S.set||{}; S.set.theme=t; if(localStorage.getItem(LS_KEY))save();
+}
 const LS_KEY='kalisi_v1';
 const COLORS=['#F5A83C','#7FA8F5','#59C98D','#E4739A','#B58CF0','#5FC9C9','#E4A05F'];
 let S=null;                 // app state
@@ -438,7 +443,7 @@ function msgHTML(m,c){
   if(m.replyTo) inner+=`<div class="quote"><b>${m.replyTo.from==='me'?'You':esc(c.name)}</b>${esc(m.replyTo.text)}</div>`;
   if(m.kind==='img') inner+=`<img src="${m.img}" alt="photo">`;
   if(m.kind==='voice') inner+=voiceBubbleHTML(m);
-  if(m.text) inner+=esc(m.text);
+  if(m.text) inner+=esc(maskingOn()?maskSensitive(m.text):m.text);
   const burnCls=m.burn?' burnable':'';
   const burnBar=m.burn&&m.revealed?`<div class="burn-bar"><i style="animation:burnbar ${BURN_VIEW_S}s linear forwards"></i></div>`:'';
   return `<div class="brow ${side}"><div class="bub${burnCls}" data-mid="${m.id}">${inner}${burnBar}<div class="meta">${m.expireAt?'⌛ ':''}${fmtTime(m.ts)} ${ticks(m)}</div></div></div>`;
@@ -602,5 +607,6 @@ function closeSheets(){ $('backdrop').classList.remove('on'); document.querySele
     const d=S.data[S.active];for(const cid in d.chats){for(const m of d.chats[cid].msgs){if(m.expireAt)scheduleExpiry(m,cid);}}
     if(!me().token)setTimeout(()=>toast('⚠️ Offline demo account — sign up again to chat for real'),800);
   }
+  applyTheme(S&&S.set&&S.set.theme?S.set.theme:'dark');
   bootRoute();
 })();
