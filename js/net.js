@@ -167,8 +167,7 @@ async function pollOnce(){
   }
   if(changed){ save(); if(curChat)renderMsgs(true); renderChats(); }
   // periodically refresh contact requests (every ~4th poll)
-  window._pollN=(window._pollN||0)+1;
-  if(window._pollN%4===1){ refreshRequests(); }
+  refreshRequests();
 }
 
 /* ---- incoming group message ---- */

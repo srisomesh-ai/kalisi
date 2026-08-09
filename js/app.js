@@ -127,7 +127,7 @@ function switchTab(btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('on'));
   btn.classList.add('on'); $(btn.dataset.pane).classList.add('on');
-  if(btn.dataset.pane==='pane-connect')renderConnect();
+  if(btn.dataset.pane==='pane-connect'){ renderConnect(); if(typeof refreshRequests==='function')refreshRequests(); }
   if(btn.dataset.pane==='pane-privacy')renderPrivacy();
   if(btn.dataset.pane==='pane-status')openStatusTab();
 }

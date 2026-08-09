@@ -53,20 +53,41 @@
 .sv-viewers{flex:1;color:#fff;font-size:14px;font-weight:600;text-align:left}
 .sv-del{color:var(--ember);font-size:14px;font-weight:600}
 
-/* ============ Light theme (#6) ============ */
+/* ============ Light theme (#6) — comprehensive ============ */
 :root[data-theme=light]{
   --bg:#F4F5FA; --panel:#FFFFFF; --panel2:#EEF0F7; --line:#DDE1EC;
   --text:#141A2E; --muted:#5A6178; --faint:#9098AE;
-  --mine:#DCE6FF; --theirs:#EEF0F7; --gold:#D98A1F; --gold-deep:#B8720F;
+  --mine:#D6E4FF; --theirs:#FFFFFF; --gold:#D98A1F; --gold-deep:#B8720F;
 }
-:root[data-theme=light] body{background:#E4E7F0}
-:root[data-theme=light] #phone{background:var(--bg)}
-:root[data-theme=light] .hero-h1 em,:root[data-theme=light] .myid{color:var(--gold-deep)}
+:root[data-theme=light] body{background:#DCE0EC}
+:root[data-theme=light] #phone{background:var(--bg);box-shadow:0 0 60px rgba(0,0,0,.12)}
+:root[data-theme=light] .top{background:var(--bg)}
+:root[data-theme=light] .tabs{background:var(--panel);border-top-color:var(--line)}
+:root[data-theme=light] #chat-top{background:var(--panel);border-bottom-color:var(--line)}
 :root[data-theme=light] #msgs{background:
-  radial-gradient(circle at 1px 1px, rgba(90,97,120,.06) 1px, transparent 1.6px) 0 0/22px 22px, var(--bg)}
-:root[data-theme=light] .brow.mine .bub{color:#141A2E}
+  radial-gradient(circle at 1px 1px, rgba(90,97,120,.08) 1px, transparent 1.6px) 0 0/22px 22px,
+  linear-gradient(180deg,#EEF1F8,#F4F5FA)}
+:root[data-theme=light] .brow.theirs .bub{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,26,46,.08);color:#141A2E}
+:root[data-theme=light] .brow.mine .bub{background:#D6E4FF;color:#141A2E}
+:root[data-theme=light] .bub .meta,:root[data-theme=light] .tick{color:#8A91AB}
 :root[data-theme=light] .tick.read{color:var(--gold-deep)}
+:root[data-theme=light] #composer{background:var(--panel);border-top-color:var(--line)}
+:root[data-theme=light] #msg-in{background:#F1F3F9;border-color:var(--line);color:var(--text)}
+:root[data-theme=light] #reply-bar{background:#EEF0F7}
+:root[data-theme=light] .search{background:#F1F3F9}
+:root[data-theme=light] .chat-row:active{background:#F1F3F9}
+:root[data-theme=light] .daychip{background:#E4E7F0;color:#5A6178}
+:root[data-theme=light] .enc-note{background:rgba(217,138,31,.1);border-color:rgba(217,138,31,.25);color:var(--gold-deep)}
+:root[data-theme=light] .sheet{background:var(--panel)}
+:root[data-theme=light] .pcard{background:#F7F8FC}
+:root[data-theme=light] .prow{border-top-color:var(--line)}
+:root[data-theme=light] .menu-it:active{background:#EEF0F7}
+:root[data-theme=light] .hero-h1 em,:root[data-theme=light] .myid{color:var(--gold-deep)}
 :root[data-theme=light] .avatar{color:#fff}
+:root[data-theme=light] .icon-btn:active{background:#EEF0F7}
+:root[data-theme=light] #backdrop{background:rgba(20,26,46,.35)}
+:root[data-theme=light] textarea,:root[data-theme=light] input{color:var(--text)}
+:root[data-theme=light] .tgl{background:#E4E7F0}
 
 /* status compose share + viewer actions */
 .st-share-opt{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);margin-bottom:12px;cursor:pointer}

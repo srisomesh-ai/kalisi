@@ -6,12 +6,20 @@ let _pendingOut=[];  // requests I sent, awaiting their accept
 async function refreshRequests(){
   if(!me()?.token)return;
   try{
+    const prevCount=_reqIn.length;
     const r=await api('req_list',authBody());
     _reqIn=r.requests||[];
     const st=await api('contacts_state',authBody());
     _acceptedKal=st.accepted||[]; _pendingOut=st.pending_out||[];
     updateReqBadge();
+    // notify on a newly arrived request
+    if(_reqIn.length>prevCount && prevCount>=0 && window._reqReady){
+      const latest=_reqIn[0];
+      toast('👋 New contact request from @'+(latest.username||latest.name||''));
+    }
+    window._reqReady=true;
     if($('pane-connect')?.classList.contains('on'))renderConnect();
+    renderChats();
   }catch(e){}
 }
 function updateReqBadge(){
