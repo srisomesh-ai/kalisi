@@ -278,44 +278,62 @@ function copyText(t,msg){ navigator.clipboard?.writeText(t).then(()=>toast(msg))
 async function renderPrivacy(){
   const m=me();
   const fp=(await sha(m.kalId+':'+m.id)).slice(0,32).match(/.{4}/g).join(' ');
+  const ic={
+    shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+    key:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="4"/><path d="M11 11l7 7M16 16l2-2M14 18l2-2"/></svg>',
+    backup:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v10m0 0l-4-4m4 4l4-4"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>',
+    restore:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V11m0 0l-4 4m4-4l4 4"/><path d="M5 9V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3"/></svg>',
+    export:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M9 13h6M9 17h4"/></svg>',
+    trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>',
+    info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
+    logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 12H4m0 0l4-4m-4 4l4 4"/><path d="M9 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9"/></svg>'
+  };
   $('privacy-body').innerHTML=`
-    <h3>What our server can see</h3>
+    <div class="priv-hero">
+      <div class="priv-hero-ic">${ic.shield}</div>
+      <div><div class="priv-hero-t">You're protected</div>
+      <div class="priv-hero-s">End-to-end encrypted. No phone number. Nothing readable leaves your device.</div></div>
+    </div>
+
+    <div class="sec-label">What our server can see</div>
     <div class="pcard">
-      <div class="prow"><span class="k">Your phone number</span><span class="v no">Never asked</span></div>
-      <div class="prow"><span class="k">Your contacts list</span><span class="v no">Never uploaded</span></div>
-      <div class="prow"><span class="k">Message content</span><span class="v no">Encrypted — unreadable</span></div>
-      <div class="prow"><span class="k">Stored messages</span><span class="v rel">Relay only · deleted on delivery</span></div>
-      <div class="prow"><span class="k">Your Kalisi ID</span><span class="v rel">Yes (needed to route)</span></div>
+      <div class="prow"><span class="k">Phone number</span><span class="pill no">Never asked</span></div>
+      <div class="prow"><span class="k">Contacts list</span><span class="pill no">Never uploaded</span></div>
+      <div class="prow"><span class="k">Message content</span><span class="pill no">Unreadable</span></div>
+      <div class="prow"><span class="k">Stored messages</span><span class="pill rel">Deleted on delivery</span></div>
+      <div class="prow"><span class="k">Your @username</span><span class="pill rel">Needed to route</span></div>
     </div>
-    <h3>Defaults</h3>
+
+    <div class="sec-label">Chat defaults</div>
     <div class="pcard">
-      <div class="prow"><span class="k">Disappearing messages (new chats)</span>
-        <select onchange="S.defTimer=+this.value;save();toast('Default updated')">
-          ${timerOptions(S.defTimer||0)}
-        </select></div>
-      <div class="prow"><span class="k">Read receipts</span><span class="v">On</span></div>
-      <div class="prow"><span class="k">Screenshot alert</span><span class="v" style="color:var(--faint)">Android app only</span></div>
+      <div class="prow"><span class="k">Disappearing messages</span>
+        <select class="mini-select" onchange="S.defTimer=+this.value;save();toast('Default updated')">${timerOptions(S.defTimer||0)}</select></div>
+      <div class="prow"><span class="k">Read receipts</span>${toggle('set_readReceipts',S.set?.readReceipts!==false)}</div>
+      <div class="prow"><span class="k">Screenshot protection</span><span class="pill rel">App only</span></div>
     </div>
-    <h3>My encryption key</h3>
-    <div class="pcard"><div class="ph">Device key fingerprint</div>
-      <div class="ps">Generated and stored only on this phone. Compare it with a friend in person to verify no one is in the middle.</div>
-      <div class="fp" style="padding:0 15px 14px">${fp}</div>
-    </div>
-    <h3>My data</h3>
+
+    <div class="sec-label">Encryption key</div>
     <div class="pcard">
-      <div class="ph">Changing phones?</div>
-      <div class="ps">Your account lives only on this phone. Save an encrypted backup, then restore it on the new phone — identity, friends and chats come back exactly as they are.</div>
-      <div class="menu-it" onclick="backupData()">🔐 &nbsp;Save encrypted backup file</div>
-      <div class="menu-it" onclick="restorePick()">📥 &nbsp;Restore from a backup file</div>
-      <div class="menu-it" onclick="exportData()">⬇ &nbsp;Export readable data (JSON)</div>
-      <div class="menu-it red" onclick="wipeAll()">🗑 &nbsp;Wipe everything from this phone</div>
+      <div class="ph">${ic.key}<span>Device key fingerprint</span></div>
+      <div class="ps">Generated and stored only on this phone. Compare it with a contact in person to verify no one is in the middle.</div>
+      <div class="fp-box">${fp}</div>
     </div>
-    <h3>Account</h3>
-    <div class="pcard">
-      <div class="menu-it" onclick="openSheet('sheet-about')">ℹ️ &nbsp;About Kalisi · how it works</div>
-      <div class="menu-it red" onclick="logout()">🚪 &nbsp;Log out from this phone</div>
+
+    <div class="sec-label">Backup &amp; data</div>
+    <div class="pcard tight">
+      <div class="ps" style="padding:14px 16px 4px">Changing phones? Save an encrypted backup, then restore it — your identity, contacts and chats come back exactly as they are.</div>
+      <button class="row-btn" onclick="backupData()"><span class="row-ic ok">${ic.backup}</span><span class="row-tx">Save encrypted backup</span><span class="row-ar">›</span></button>
+      <button class="row-btn" onclick="restorePick()"><span class="row-ic">${ic.restore}</span><span class="row-tx">Restore from backup</span><span class="row-ar">›</span></button>
+      <button class="row-btn" onclick="exportData()"><span class="row-ic">${ic.export}</span><span class="row-tx">Export readable data</span><span class="row-ar">›</span></button>
+      <button class="row-btn danger" onclick="wipeAll()"><span class="row-ic dz">${ic.trash}</span><span class="row-tx">Wipe everything from this phone</span><span class="row-ar">›</span></button>
     </div>
-    <p class="qr-sub" style="text-align:center;margin-top:4px">Kalisi prototype v0.1 · all data lives in this browser only</p>`;
+
+    <div class="sec-label">Account</div>
+    <div class="pcard tight">
+      <button class="row-btn" onclick="openSheet('sheet-about')"><span class="row-ic">${ic.info}</span><span class="row-tx">About Kalisi · how it works</span><span class="row-ar">›</span></button>
+      <button class="row-btn danger" onclick="logout()"><span class="row-ic dz">${ic.logout}</span><span class="row-tx">Log out from this phone</span><span class="row-ar">›</span></button>
+    </div>
+    <p class="priv-foot">Kalisi · your privacy, respected<br>All data lives on this device only</p>`;
 }
 function timerOptions(sel){
   const o=[[0,'Off'],[21600,'6 hours'],[43200,'12 hours'],[86400,'24 hours'],[604800,'7 days'],[2592000,'30 days']];
