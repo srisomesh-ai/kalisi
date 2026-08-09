@@ -128,6 +128,7 @@ async function obSaveKey(){
 function obSkipKey(){ obEnter(); }
 function obEnter(){
   showApp();
+  if(typeof isNativeApp==='function'&&isNativeApp()){ setTimeout(()=>{ if(typeof autoBackup==='function')autoBackup(); },1500); }
 }
 
 /* ---------- main shell ---------- */
@@ -312,7 +313,7 @@ async function renderPrivacy(){
     <p class="qr-sub" style="text-align:center;margin-top:4px">Kalisi prototype v0.1 · all data lives in this browser only</p>`;
 }
 function timerOptions(sel){
-  const o=[[0,'Off'],[30,'30 sec (demo)'],[43200,'12 hours'],[86400,'24 hours'],[604800,'7 days']];
+  const o=[[0,'Off'],[21600,'6 hours'],[43200,'12 hours'],[86400,'24 hours'],[604800,'7 days'],[2592000,'30 days']];
   return o.map(([v,l])=>`<option value="${v}" ${v===sel?'selected':''}>${l}</option>`).join('');
 }
 function exportData(){
@@ -385,7 +386,7 @@ function openChat(cid){
   $('chat-name').textContent=c.name;
   const av=$('chat-avatar'); av.textContent=initials(c.name); av.style.background=c.color; av.style.color='#141A2E';
   if(c.isGroup){ $('chat-sub-t').textContent=groupMsgLabel(c); }
-  else setSub();
+  else { setSub(); fetchPresence(c); }
   // header menu button
   const hm=$('chat-header-menu'); if(hm)hm.onclick=()=>openChatMenu(cid);
   $('scr-main').classList.remove('on'); $('scr-chat').classList.add('on');
@@ -395,7 +396,24 @@ function setSub(txt,typing){
   const s=$('chat-sub'); s.classList.toggle('typing',!!typing);
   $('chat-sub-t').textContent=txt||('End-to-end encrypted · keys on this device'+(chat(curChat).timer?` · ⌛ ${timerLabel(chat(curChat).timer)}`:''));
 }
-function timerLabel(t){return {30:'30s',43200:'12h',86400:'24h',604800:'7d'}[t]||'off';}
+async function fetchPresence(c){
+  if(!c.real||c.isGroup||!me().token)return;
+  if(!(S.set?.lastSeen!==false))return; // respect my own last-seen setting off? show anyway for others
+  try{
+    const r=await api('presence',{...authBody(),kal_id:c.kalId});
+    if(curChat!==c.id)return;
+    const t=r.last_seen;
+    const diff=(Date.now()-t)/1000;
+    let s;
+    if(diff<90) s='online';
+    else if(diff<3600) s='last seen '+Math.floor(diff/60)+'m ago';
+    else if(diff<86400) s='last seen '+Math.floor(diff/3600)+'h ago';
+    else s='last seen '+Math.floor(diff/86400)+'d ago';
+    const sub=$('chat-sub'); if(sub)sub.classList.toggle('typing', s==='online');
+    $('chat-sub-t').textContent=s;
+  }catch(e){}
+}
+function timerLabel(t){return {21600:'6h',43200:'12h',86400:'24h',604800:'7d',2592000:'30d'}[t]||'off';}
 function openChatMenu(cid){
   const c=contact(cid);
   let items='';
@@ -424,7 +442,7 @@ function ticks(m){
 }
 function renderMsgs(scroll){
   const box=$('msgs'); const ch=chat(curChat); const c=contact(curChat);
-  box.innerHTML=`<div class="enc-note">🔒 Messages are end-to-end encrypted and stored only on your phones. Kalisi's server relays them, then deletes its copy.</div>`;
+  box.innerHTML = ch.msgs.length<=6 ? `<div class="enc-note">🔒 Messages are end-to-end encrypted and stored only on your phones. Kalisi's server relays them, then deletes its copy.</div>` : '';
   let lastDay='';
   for(const m of ch.msgs){
     const day=fmtDay(m.ts);
@@ -438,6 +456,14 @@ function renderMsgs(scroll){
     el.addEventListener('contextmenu',e=>{e.preventDefault();openMsgMenu(el.dataset.mid);});
   });
   if(scroll)box.scrollTop=box.scrollHeight;
+}
+function reactionChips(m){
+  if(!m.reactions)return '';
+  const set=[];
+  if(m.reactions.me)set.push(m.reactions.me);
+  if(m.reactions.them&&m.reactions.them!==m.reactions.me)set.push(m.reactions.them);
+  if(!set.length)return '';
+  return `<div class="msg-reacts">${set.map(e=>`<span>${e}</span>`).join('')}</div>`;
 }
 function msgHTML(m,c){
   const side=m.from==='me'?'mine':'theirs';
@@ -454,7 +480,8 @@ function msgHTML(m,c){
   if(m.text) inner+=esc(maskingOn()?maskSensitive(m.text):m.text);
   const burnCls=m.burn?' burnable':'';
   const burnBar=m.burn&&m.revealed?`<div class="burn-bar"><i style="animation:burnbar ${BURN_VIEW_S}s linear forwards"></i></div>`:'';
-  return `<div class="brow ${side}"><div class="bub${burnCls}" data-mid="${m.id}">${inner}${burnBar}<div class="meta">${m.expireAt?'⌛ ':''}${fmtTime(m.ts)} ${ticks(m)}</div></div></div>`;
+  const reacts=reactionChips(m);
+  return `<div class="brow ${side}"><div class="bub${burnCls}" data-mid="${m.id}">${inner}${burnBar}<div class="meta">${m.expireAt?'⌛ ':''}${fmtTime(m.ts)} ${ticks(m)}</div>${reacts}</div></div>`;
 }
 const BURN_VIEW_S=6;
 function onBubbleTap(mid){
@@ -552,7 +579,7 @@ function scheduleExpiry(m,cid){
 }
 function openTimerSheet(){
   const ch=chat(curChat);
-  $('timer-opts').innerHTML=[[0,'Off'],[30,'30 seconds (demo)'],[43200,'12 hours'],[86400,'24 hours'],[604800,'7 days']]
+  $('timer-opts').innerHTML=[[0,'Off'],[21600,'6 hours'],[43200,'12 hours'],[86400,'24 hours'],[604800,'7 days'],[2592000,'30 days']]
     .map(([v,l])=>`<div class="menu-it" onclick="setTimerVal(${v})">${v===ch.timer?'●':'○'} &nbsp;${l}</div>`).join('');
   openSheet('sheet-timer');
 }
@@ -565,7 +592,9 @@ function setTimerVal(v){
 function openMsgMenu(mid){
   const ch=chat(curChat); const m=ch.msgs.find(x=>x.id===mid); if(!m||m.burned)return;
   const c=contact(curChat);
-  $('msgmenu-body').innerHTML=`
+  const emojis=['❤️','😂','👍','😮','😢','🙏'];
+  const reactBar=`<div class="react-bar">${emojis.map(e=>`<button class="react-emoji" onclick='reactMsg("${mid}","${e}")'>${e}</button>`).join('')}</div>`;
+  $('msgmenu-body').innerHTML=reactBar+`
     <div class="menu-it" onclick='closeSheets();window._reply("${mid}")'>↩ &nbsp;Reply</div>
     <div class="menu-it" onclick='closeSheets();openMsgInfo("${mid}")'>ℹ &nbsp;Message info</div>
     <div class="menu-it red" onclick='delMsg("${mid}",false)'>🗑 &nbsp;Delete for me</div>
@@ -573,11 +602,24 @@ function openMsgMenu(mid){
   window._reply=id=>{const mm=ch.msgs.find(x=>x.id===id); if(mm)setReply(mm,c);};
   openSheet('sheet-msgmenu');
 }
+function reactMsg(mid,emoji){
+  const ch=chat(curChat); const c=contact(curChat); const m=ch.msgs.find(x=>x.id===mid);
+  if(!m)return;
+  // toggle my reaction
+  m.reactions=m.reactions||{};
+  if(m.reactions.me===emoji){ delete m.reactions.me; } else { m.reactions.me=emoji; }
+  save();
+  if(c&&c.real&&!c.isGroup){ netSendCtl(c,{kind:'react',id:mid,emoji:m.reactions.me||''}); }
+  closeSheets(); renderMsgs(false);
+}
 function delMsg(mid,both){
-  const ch=chat(curChat); const i=ch.msgs.findIndex(x=>x.id===mid);
+  const ch=chat(curChat); const c=contact(curChat); const i=ch.msgs.findIndex(x=>x.id===mid);
+  if(both && c && c.real && !c.isGroup){
+    netSendCtl(c,{kind:'delete',id:mid});   // tell peer to remove it too
+  }
   if(i>=0){ ch.msgs.splice(i,1); save(); }
   closeSheets(); renderMsgs(false); renderChats();
-  toast(both?'Deleted from both phones':'Deleted from this phone');
+  toast(both?'Deleted for everyone':'Deleted for you');
 }
 function openMsgInfo(mid){
   const ch=chat(curChat); const m=ch.msgs.find(x=>x.id===mid); if(!m)return;
@@ -603,6 +645,21 @@ function openSheet(id){ $('backdrop').classList.add('on'); $(id).classList.add('
 function closeSheets(){ $('backdrop').classList.remove('on'); document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('on')); if(typeof statusViewerClosed==='function')statusViewerClosed(); }
 
 /* ---------- boot ---------- */
+/* #9 in-app back navigation */
+function kalisiBack(){
+  const openSheet=document.querySelector('.sheet.on');
+  if(openSheet){ closeSheets(); return true; }
+  if(document.getElementById('scr-chat')?.classList.contains('on')){ closeChat(); return true; }
+  const chatsPane=document.getElementById('pane-chats');
+  if(chatsPane && !chatsPane.classList.contains('on') && document.getElementById('scr-main')?.classList.contains('on')){
+    switchTab(document.querySelector('.tab[data-pane="pane-chats"]')); return true;
+  }
+  return false;
+}
+window.kalisiBack=kalisiBack;
+window.addEventListener('popstate',()=>{ if(kalisiBack()){ try{history.pushState(null,'');}catch(e){} } });
+try{ history.pushState(null,''); }catch(e){}
+
 (function(){
   load();
   const inp=$('msg-in');
@@ -615,7 +672,7 @@ function closeSheets(){ $('backdrop').classList.remove('on'); document.querySele
     const d=S.data[S.active];for(const cid in d.chats){for(const m of d.chats[cid].msgs){if(m.expireAt)scheduleExpiry(m,cid);}}
     if(!me().token)setTimeout(()=>toast('⚠️ Offline demo account — sign up again to chat for real'),800);
   }
-  applyTheme(S&&S.set&&S.set.theme?S.set.theme:'dark');
+  applyTheme(S&&S.set&&S.set.theme?S.set.theme:'light');
   if(S&&S.set&&S.set.secureAll)secureOn();
   bootRoute();
 })();

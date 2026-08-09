@@ -155,6 +155,16 @@ async function pollOnce(){
       if(m){ m.status='read'; m.burned=true; m.text=''; m.img=null; }
       continue;
     }
+    if(body.kind==='delete'){ // peer deleted a message for everyone
+      const ch=chat(c.id); const i=ch.msgs.findIndex(x=>x.id===body.id);
+      if(i>=0){ ch.msgs.splice(i,1); }
+      continue;
+    }
+    if(body.kind==='react'){ // peer reacted to a message
+      const ch=chat(c.id); const m=ch.msgs.find(x=>x.id===body.id);
+      if(m){ m.reactions=m.reactions||{}; if(body.emoji)m.reactions.them=body.emoji; else delete m.reactions.them; }
+      continue;
+    }
     const ch=chat(c.id);
     const m={id:body.cid||uid(),from:'them',kind:body.kind,text:body.text||'',img:body.img||null,
              audio:body.audio||null,wave:body.wave||null,dur:body.dur||0,
@@ -191,4 +201,24 @@ function handleGroupIncoming(gb){
   if(curChat!==g.id)ch.unread=(ch.unread||0)+1;
   save();
   if(curChat===g.id)renderMsgs(true); else renderChats();
+}
+
+/* #10 auto-backup (app): silently save an encrypted backup to Downloads, no prompt */
+async function autoBackup(){
+  if(!(typeof isNativeApp==='function'&&isNativeApp()))return; // app only
+  if(!S||!S.identities?.length)return;
+  try{
+    // device-bound passphrase stored locally so restore is automatic on same device family
+    let pass=localStorage.getItem('kalisi_autopass');
+    if(!pass){ pass=crypto.getRandomValues(new Uint8Array(16)).reduce((a,b)=>a+b.toString(16).padStart(2,'0'),''); localStorage.setItem('kalisi_autopass',pass); }
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const key=await pbkey(pass,salt);
+    const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(S)));
+    const pack={kalisi_backup:1,auto:1,ts:now(),salt:b64(salt),iv:b64(iv),data:b64(ct)};
+    const blob=new Blob([JSON.stringify(pack)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='Kalisi-backup.kbk'; a.click();
+    if(S){ S.lastBackup=now(); const m=me(); if(m)m.backedUp=true; save(); }
+  }catch(e){}
 }

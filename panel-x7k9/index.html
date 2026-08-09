@@ -84,6 +84,7 @@ tr:last-child td{border-bottom:none}
         Kalisi Admin
       </div>
       <button class="btn ghost sm" onclick="loadAll()">↻ Refresh</button>
+      <button class="btn amber sm" onclick="doWipe()">⚠ Wipe all data</button>
       <button class="btn red sm" onclick="doLogout()">Log out</button>
     </div>
 
@@ -144,6 +145,11 @@ async function doLogin(){
   }catch(e){$('a-err').textContent='Cannot reach server';}
 }
 function doLogout(){ call('logout',{}).catch(()=>{}); logoutLocal(); }
+async function doWipe(){
+  if(!confirm('WIPE ALL DATA?\n\nThis permanently deletes every user, message, status, group and contact from Kalisi. Cannot be undone.'))return;
+  if(!confirm('Are you absolutely sure? This erases the entire Kalisi database.'))return;
+  try{ await call('wipe_all',{}); toast('All data wiped'); loadAll(); }catch(e){ toast(e.message); }
+}
 function logoutLocal(){ TOKEN=''; sessionStorage.removeItem('kalisi_admin_token'); $('panel').style.display='none'; $('login').style.display='block'; }
 function enterPanel(){ $('login').style.display='none'; $('panel').style.display='block'; loadAll(); }
 

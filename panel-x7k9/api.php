@@ -36,6 +36,7 @@ try {
     case 'set_disabled': setDisabled($pdo, $in); break;
     case 'delete_user':  deleteUser($pdo, $in); break;
     case 'list_groups':  listGroups($pdo); break;
+    case 'wipe_all':     wipeAll($pdo); break;
     case 'logout':       $pdo->prepare('DELETE FROM k_admin_sessions WHERE token = ?')->execute([$in['token'] ?? '']); out(true, ['bye'=>1]); break;
     default:             out(false, ['error' => 'unknown_action']);
   }
@@ -117,6 +118,12 @@ function deleteUser(PDO $pdo, array $in): void {
   $pdo->prepare('DELETE FROM k_status WHERE kal_id = ?')->execute([$kid]);
   $pdo->prepare('DELETE FROM k_blocks WHERE blocker = ? OR blocked = ?')->execute([$kid,$kid]);
   out(true, ['deleted' => $kid]);
+}
+function wipeAll(PDO $pdo): void {
+  foreach (['k_queue','k_receipts','k_users','k_contacts','k_status','k_status_views','k_status_reacts','k_blocks','k_groups'] as $t) {
+    try { $pdo->exec("DELETE FROM $t"); } catch (Throwable $e) {}
+  }
+  out(true, ['wiped' => true]);
 }
 function listGroups(PDO $pdo): void {
   $rows = [];

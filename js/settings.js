@@ -41,7 +41,7 @@ function openSettings(){
       <div class="prow"><span class="k">Enter key sends message</span>${toggle('set_enterSend',S.set?.enterSend!==false)}</div>
       <div class="prow"><span class="k">Default disappearing timer</span>
         <select onchange="setPref('defTimer',+this.value)">
-          ${[[0,'Off'],[43200,'12h'],[86400,'24h'],[604800,'7d']].map(([v,l])=>`<option value="${v}" ${(S.set?.defTimer||0)===v?'selected':''}>${l}</option>`).join('')}
+          ${[[0,'Off'],[21600,'6h'],[43200,'12h'],[86400,'24h'],[604800,'7d'],[2592000,'30d']].map(([v,l])=>`<option value="${v}" ${(S.set?.defTimer||0)===v?'selected':''}>${l}</option>`).join('')}
         </select></div>
     </div>
 

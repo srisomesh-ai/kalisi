@@ -42,6 +42,7 @@ try {
     case 'req_list':      reqList($pdo, $in); break;
     case 'req_act':       reqAct($pdo, $in); break;
     case 'contacts_state': contactsState($pdo, $in); break;
+    case 'presence':      presence($pdo, $in); break;
     case 'status_view':   statusView($pdo, $in); break;
     case 'status_viewers': statusViewers($pdo, $in); break;
     case 'status_delete':  statusDelete($pdo, $in); break;
@@ -239,6 +240,16 @@ function contactsState(PDO $pdo, array $in): void {
     elseif ($r['a']===$me['kal_id']) $pendingOut[]=$other;
   }
   out(true, ['accepted'=>$accepted, 'pending_out'=>$pendingOut]);
+}
+
+function presence(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $kid = strtoupper(trim((string)($in['kal_id'] ?? '')));
+  if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $kid)) out(false, ['error'=>'bad_id']);
+  $st = $pdo->prepare('SELECT last_seen FROM k_users WHERE kal_id = ?'); $st->execute([$kid]);
+  $u = $st->fetch();
+  if (!$u) out(false, ['error'=>'not_found']);
+  out(true, ['last_seen' => strtotime($u['last_seen'])*1000]);
 }
 
 function statusView(PDO $pdo, array $in): void {
