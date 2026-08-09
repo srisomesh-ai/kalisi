@@ -8,3 +8,8 @@ define('DB_PASS', 'your_database_password_here');
    Generate a hash: echo hash('sha256','YourNewPassword'); */
 // define('ADMIN_USER', 'someswara');
 // define('ADMIN_PASS_HASH', 'paste_sha256_hash_here');
+
+/* Push notifications (FCM HTTP v1):
+   Place your Firebase service-account JSON at api/fcm-key.json (NOT in git).
+   Download it from Firebase Console → Project Settings → Service accounts → Generate new private key.
+   Without this file, the app still works; only push-when-closed is disabled. */

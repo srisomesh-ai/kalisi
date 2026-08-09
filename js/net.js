@@ -174,10 +174,7 @@ async function pollOnce(){
     const activeInThisChat = (curChat===c.id) && !document.hidden;
     if(activeInThisChat){ netSendCtl(c,{kind:'read',ids:[m.id]}); }
     else { ch.unread=(ch.unread||0)+1;
-      if(typeof notifyIncoming==='function'){
-        const prev = body.kind==='voice'?'🎙 Voice message':(body.kind==='img'?'🖼 Photo':(body.burn?'🔥 Burn message':(maskingOn?maskSensitive(body.text||''):body.text||'')));
-        notifyIncoming(c.name, prev);
-      }
+      if(typeof notifyIncoming==='function') notifyIncoming(c,m);
     }
     if(m.expireAt)scheduleExpiry(m,c.id);
   }
@@ -204,7 +201,7 @@ function handleGroupIncoming(gb){
            img:gb.img||null,audio:gb.audio||null,wave:gb.wave||null,dur:gb.dur||0,
            ts:gb.ts||now(),status:'read'};
   ch.msgs.push(m);
-  if(curChat!==g.id)ch.unread=(ch.unread||0)+1;
+  if(curChat!==g.id){ ch.unread=(ch.unread||0)+1; if(typeof notifyIncoming==='function')notifyIncoming(g,m); }
   save();
   if(curChat===g.id)renderMsgs(true); else renderChats();
 }
@@ -243,4 +240,15 @@ async function registerFCM(){
   window.onKalisiFCMToken=(t)=>{ window.KalisiFCMToken=t; send(t); };
   // ask native to fetch/register the token
   try{ if(window.KalisiFCM) window.KalisiFCM.postMessage('register'); }catch(e){}
+}
+
+/* ---- FCM: register device token with server (called by native app) ---- */
+window.onKalisiFCMToken=function(token){
+  window._kalisiFCMToken=token;
+  registerFCM();
+};
+async function registerFCM(){
+  const token=window._kalisiFCMToken||window.KalisiFCMToken;
+  if(!token||!me()?.token)return;
+  try{ await api('fcm_register',{...authBody(),fcm_token:token}); }catch(e){}
 }

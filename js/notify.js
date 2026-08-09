@@ -1,39 +1,51 @@
-/* ============ Kalisi in-app notifications (sound + vibration) ============ */
-/* Fires when a new message/request arrives while the app is OPEN.
-   Native FCM (notify.js's counterpart in Flutter) handles closed-app pushes. */
+/* ============ Kalisi in-app notifications: sound + vibration ============ */
 
+/* Short pleasant "ding" via WebAudio (no asset file needed) */
 let _audioCtx=null;
-function notifSound(){
-  if(S&&S.set&&S.set.sound===false)return;
+function playDing(){
+  if(!(S?.set?.sound!==false))return;         // respect sound setting
   try{
     _audioCtx=_audioCtx||new (window.AudioContext||window.webkitAudioContext)();
     const ctx=_audioCtx;
-    // pleasant two-tone "ting"
-    const now=ctx.currentTime;
-    [ [880,0], [1320,0.09] ].forEach(([f,t])=>{
-      const o=ctx.createOscillator(), g=ctx.createGain();
-      o.type='sine'; o.frequency.value=f;
-      g.gain.setValueAtTime(0,now+t);
-      g.gain.linearRampToValueAtTime(0.18,now+t+0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001,now+t+0.18);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(now+t); o.stop(now+t+0.2);
-    });
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type='sine'; o.frequency.setValueAtTime(880,ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(1320,ctx.currentTime+0.08);
+    g.gain.setValueAtTime(0.0001,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25,ctx.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.35);
+    o.start(); o.stop(ctx.currentTime+0.36);
   }catch(e){}
 }
-function notifVibrate(){
-  if(S&&S.set&&S.set.vibrate===false)return;
-  try{ if(navigator.vibrate)navigator.vibrate([40,30,40]); }catch(e){}
+function buzz(pattern){
+  if(!(S?.set?.vibrate!==false))return;        // respect vibrate setting
+  try{ if(navigator.vibrate)navigator.vibrate(pattern||[30,40,30]); }catch(e){}
+  // native app can vibrate more reliably
+  try{ if(window.KalisiVibrate)window.KalisiVibrate.postMessage(String((pattern||[30,40,30]).join(','))); }catch(e){}
 }
-function notifyIncoming(fromName,preview){
-  notifSound(); notifVibrate();
-  // browser notification if app is backgrounded and permission granted
-  if(document.hidden && 'Notification' in window && Notification.permission==='granted'){
-    try{ new Notification(fromName||'Kalisi', {body:preview||'New message', icon:'/icon-192.png', tag:'kalisi-msg'}); }catch(e){}
-  }
+
+/* Called when a new incoming message arrives (from poll) */
+function notifyIncoming(c,m){
+  // don't notify for the chat you're actively viewing
+  if(curChat===c.id && document.visibilityState==='visible')return;
+  playDing();
+  buzz([30,40,30]);
+  // browser notification (web, when tab not focused)
+  try{
+    if(document.hidden && 'Notification' in window && Notification.permission==='granted'){
+      const body = m.kind==='text' ? (maskingOn()?maskSensitive(m.text):m.text)
+                 : (m.kind==='voice'?'🎙 Voice message':(m.kind==='img'?'🖼 Photo':'New message'));
+      const n=new Notification((c.name||'Kalisi'), {body, icon:'/icon-192.png', tag:c.id});
+      n.onclick=()=>{ window.focus(); openChat(c.id); n.close(); };
+    }
+  }catch(e){}
 }
-function requestNotifPermission(){
-  if('Notification' in window && Notification.permission==='default'){
-    Notification.requestPermission().catch(()=>{});
-  }
+
+/* Ask for web notification permission once (after first interaction) */
+function askNotifyPermission(){
+  try{
+    if('Notification' in window && Notification.permission==='default'){
+      Notification.requestPermission();
+    }
+  }catch(e){}
 }
