@@ -592,7 +592,7 @@ function openMsgInfo(mid){
 
 /* ---------- sheets ---------- */
 function openSheet(id){ $('backdrop').classList.add('on'); $(id).classList.add('on'); }
-function closeSheets(){ $('backdrop').classList.remove('on'); document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('on')); }
+function closeSheets(){ $('backdrop').classList.remove('on'); document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('on')); if(typeof statusViewerClosed==='function')statusViewerClosed(); }
 
 /* ---------- boot ---------- */
 (function(){
@@ -608,5 +608,6 @@ function closeSheets(){ $('backdrop').classList.remove('on'); document.querySele
     if(!me().token)setTimeout(()=>toast('⚠️ Offline demo account — sign up again to chat for real'),800);
   }
   applyTheme(S&&S.set&&S.set.theme?S.set.theme:'dark');
+  if(S&&S.set&&S.set.secureAll)secureOn();
   bootRoute();
 })();

@@ -78,6 +78,7 @@ function openMyStatus(){
   window.myStatusNext=()=>{ idx++; if(idx>=items.length){closeSheets();return;} render(); };
   render();
   openSheet('sheet-status-view');
+  statusViewerOpened();
 }
 async function showViewers(sid){
   try{
