@@ -49,6 +49,7 @@ function openSettings(){
     <div class="pcard">
       <div class="prow"><span class="k">Message notifications</span>${toggle('set_notif',S.set?.notif!==false)}</div>
       <div class="prow"><span class="k">Sound</span>${toggle('set_sound',S.set?.sound!==false)}</div>
+      <div class="prow"><span class="k">Vibration</span>${toggle('set_vibrate',S.set?.vibrate!==false)}</div>
       <div class="ps" style="padding:8px 15px 12px">Notifications work fully in the installed app. In the browser they're limited.</div>
     </div>
 

@@ -44,4 +44,6 @@ function showApp(){
   renderAll();
   startPoll();
   if(typeof refreshRequests==='function')refreshRequests();
+  if(typeof requestNotifPermission==='function')requestNotifPermission();
+  if(typeof registerFCM==='function')registerFCM();
 }

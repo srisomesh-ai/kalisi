@@ -43,6 +43,7 @@ try {
     case 'req_act':       reqAct($pdo, $in); break;
     case 'contacts_state': contactsState($pdo, $in); break;
     case 'presence':      presence($pdo, $in); break;
+    case 'fcm_register':  fcmRegister($pdo, $in); break;
     case 'status_view':   statusView($pdo, $in); break;
     case 'status_viewers': statusViewers($pdo, $in); break;
     case 'status_delete':  statusDelete($pdo, $in); break;
@@ -119,6 +120,11 @@ function send(PDO $pdo, array $in): void {
   if (!$rel || $rel['status'] !== 'accepted') out(false, ['error' => 'not_connected']);
   $st = $pdo->prepare('INSERT INTO k_queue (to_id, from_id, client_id, iv, payload, created_at) VALUES (?,?,?,?,?,NOW())');
   $st->execute([$to, $me['kal_id'], $cid, $iv, $blob]);
+  // best-effort push (content stays private — generic text only)
+  $sname = '';
+  $us = $pdo->prepare('SELECT username FROM k_users WHERE kal_id=?'); $us->execute([$me['kal_id']]);
+  $u = $us->fetch(); $sname = $u && $u['username'] ? '@'.$u['username'] : 'Someone';
+  sendPush($pdo, $to, 'Kalisi', $sname.' sent you a message');
   out(true, ['queued' => true]);
 }
 
@@ -240,6 +246,61 @@ function contactsState(PDO $pdo, array $in): void {
     elseif ($r['a']===$me['kal_id']) $pendingOut[]=$other;
   }
   out(true, ['accepted'=>$accepted, 'pending_out'=>$pendingOut]);
+}
+
+function fcmRegister(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $tok = substr(trim((string)($in['fcm_token'] ?? '')), 0, 300);
+  if ($tok==='') out(false,['error'=>'bad_token']);
+  try { $pdo->exec("CREATE TABLE IF NOT EXISTS k_fcm (kal_id VARCHAR(14) NOT NULL, token VARCHAR(300) NOT NULL, updated_at DATETIME NOT NULL, PRIMARY KEY(kal_id,token)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Throwable $e) {}
+  $pdo->prepare("INSERT INTO k_fcm (kal_id,token,updated_at) VALUES (?,?,NOW()) ON DUPLICATE KEY UPDATE updated_at=NOW()")
+      ->execute([$me['kal_id'],$tok]);
+  out(true,['registered'=>true]);
+}
+
+/* Send an FCM push to a recipient (best-effort; silent on failure).
+   Requires FCM_PROJECT_ID + a service-account JSON in config.local.php (FCM_SA_JSON). */
+function sendPush(PDO $pdo, string $toKal, string $title, string $body): void {
+  if (!defined('FCM_PROJECT_ID') || !defined('FCM_SA_JSON')) return;
+  try {
+    $st = $pdo->prepare("SELECT token FROM k_fcm WHERE kal_id=?"); $st->execute([$toKal]);
+    $tokens = array_column($st->fetchAll(), 'token');
+    if (!$tokens) return;
+    $access = fcmAccessToken();
+    if (!$access) return;
+    $url = 'https://fcm.googleapis.com/v1/projects/'.FCM_PROJECT_ID.'/messages:send';
+    foreach ($tokens as $t) {
+      $msg = ['message'=>[
+        'token'=>$t,
+        'notification'=>['title'=>$title,'body'=>$body],
+        'android'=>['priority'=>'high','notification'=>['sound'=>'default','channel_id'=>'kalisi_messages']],
+        'data'=>['type'=>'message']
+      ]];
+      $ch = curl_init($url);
+      curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>4,
+        CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$access,'Content-Type: application/json'],
+        CURLOPT_POSTFIELDS=>json_encode($msg)]);
+      curl_exec($ch); curl_close($ch);
+    }
+  } catch (Throwable $e) {}
+}
+function fcmAccessToken(): ?string {
+  $sa = json_decode(FCM_SA_JSON, true);
+  if (!$sa || empty($sa['client_email']) || empty($sa['private_key'])) return null;
+  $now = time();
+  $header = rtrim(strtr(base64_encode(json_encode(['alg'=>'RS256','typ'=>'JWT'])), '+/', '-_'), '=');
+  $claim = rtrim(strtr(base64_encode(json_encode([
+    'iss'=>$sa['client_email'],'scope'=>'https://www.googleapis.com/auth/firebase.messaging',
+    'aud'=>'https://oauth2.googleapis.com/token','iat'=>$now,'exp'=>$now+3600
+  ])), '+/', '-_'), '=');
+  $sig=''; openssl_sign($header.'.'.$claim, $sig, $sa['private_key'], 'sha256WithRSAEncryption');
+  $jwt = $header.'.'.$claim.'.'.rtrim(strtr(base64_encode($sig), '+/', '-_'), '=');
+  $ch = curl_init('https://oauth2.googleapis.com/token');
+  curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>4,
+    CURLOPT_POSTFIELDS=>http_build_query(['grant_type'=>'urn:ietf:params:oauth:grant-type:jwt-bearer','assertion'=>$jwt])]);
+  $res = curl_exec($ch); curl_close($ch);
+  $j = json_decode($res, true);
+  return $j['access_token'] ?? null;
 }
 
 function presence(PDO $pdo, array $in): void {

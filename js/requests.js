@@ -16,6 +16,7 @@ async function refreshRequests(){
     if(_reqIn.length>prevCount && prevCount>=0 && window._reqReady){
       const latest=_reqIn[0];
       toast('👋 New contact request from @'+(latest.username||latest.name||''));
+      if(typeof notifyIncoming==='function')notifyIncoming('New contact request','@'+(latest.username||latest.name||'')+' wants to connect');
     }
     window._reqReady=true;
     if($('pane-connect')?.classList.contains('on'))renderConnect();

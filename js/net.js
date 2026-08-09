@@ -171,8 +171,14 @@ async function pollOnce(){
              ts:body.ts||pkt.ts,status:'read',burn:!!body.burn,replyTo:body.replyTo||null};
     if(body.timer)m.expireAt=now()+body.timer*1000;
     ch.msgs.push(m);
-    if(curChat===c.id){ netSendCtl(c,{kind:'read',ids:[m.id]}); }
-    else ch.unread=(ch.unread||0)+1;
+    const activeInThisChat = (curChat===c.id) && !document.hidden;
+    if(activeInThisChat){ netSendCtl(c,{kind:'read',ids:[m.id]}); }
+    else { ch.unread=(ch.unread||0)+1;
+      if(typeof notifyIncoming==='function'){
+        const prev = body.kind==='voice'?'🎙 Voice message':(body.kind==='img'?'🖼 Photo':(body.burn?'🔥 Burn message':(maskingOn?maskSensitive(body.text||''):body.text||'')));
+        notifyIncoming(c.name, prev);
+      }
+    }
     if(m.expireAt)scheduleExpiry(m,c.id);
   }
   if(changed){ save(); if(curChat)renderMsgs(true); renderChats(); }
@@ -221,4 +227,20 @@ async function autoBackup(){
     a.download='Kalisi-backup.kbk'; a.click();
     if(S){ S.lastBackup=now(); const m=me(); if(m)m.backedUp=true; save(); }
   }catch(e){}
+}
+
+/* ---- FCM push registration (native app supplies the token) ---- */
+async function registerFCM(){
+  if(!(typeof isNativeApp==='function'&&isNativeApp()))return;
+  if(!me()?.token)return;
+  // native app sets window.KalisiFCMToken after Firebase init; may arrive async
+  const send=async(fcmToken)=>{
+    if(!fcmToken)return;
+    try{ await api('fcm_register',{...authBody(),fcm_token:fcmToken}); }catch(e){}
+  };
+  if(window.KalisiFCMToken){ send(window.KalisiFCMToken); }
+  // native calls this global when the token is ready/refreshed
+  window.onKalisiFCMToken=(t)=>{ window.KalisiFCMToken=t; send(t); };
+  // ask native to fetch/register the token
+  try{ if(window.KalisiFCM) window.KalisiFCM.postMessage('register'); }catch(e){}
 }
