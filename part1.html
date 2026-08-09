@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0D1120">
+<title>GuptChat — Private messaging. No phone number.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0D1120; --panel:#161C30; --panel2:#1E2540; --line:#28304F;
+  --text:#EDEEF4; --muted:#8A91AB; --faint:#5A6180;
+  --gold:#F5A83C; --gold-deep:#D98A1F; --ember:#E4573F;
+  --mine:#2C3866; --theirs:#1B2138; --ok:#59C98D;
+  --disp:'Bricolage Grotesque',system-ui,sans-serif;
+  --body:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#070A14;font-family:var(--body);color:var(--text)}
+#phone{max-width:430px;margin:0 auto;height:100dvh;background:var(--bg);position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,0,0,.6)}
+.scr{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg)}
+.scr.on{display:flex}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,textarea,select{font-family:inherit;font-size:16px;color:var(--text)}
+::placeholder{color:var(--faint)}
+.mono{font-family:var(--mono)}
+.hide{display:none!important}
+
+/* ---------- onboarding ---------- */
+#scr-onboard{background:
+  radial-gradient(circle at 1px 1px, rgba(245,168,60,.10) 1px, transparent 1.6px) 0 0/26px 26px,
+  radial-gradient(circle at 14px 14px, rgba(138,145,171,.07) 1px, transparent 1.6px) 0 0/26px 26px,
+  linear-gradient(170deg,#121933 0%,#0D1120 55%,#0B0E1B 100%);
+  padding:max(env(safe-area-inset-top),28px) 26px 34px;justify-content:flex-end;overflow-y:auto}
+.ob-logo{font-family:var(--disp);font-weight:800;font-size:15px;letter-spacing:.14em;color:var(--gold);text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.ob-logo svg{flex:none}
+.ob-h1{font-family:var(--disp);font-weight:800;font-size:clamp(34px,9.5vw,42px);line-height:1.06;margin:18px 0 14px;letter-spacing:-.01em}
+.ob-h1 em{font-style:normal;color:var(--gold)}
+.ob-points{list-style:none;margin:6px 0 26px;display:grid;gap:11px}
+.ob-points li{display:flex;gap:11px;align-items:flex-start;color:var(--muted);font-size:14.5px;line-height:1.45}
+.ob-points b{color:var(--text);font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--gold);margin-top:6px;flex:none}
+.field label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+.field input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 15px}
+.field input:focus{outline:none;border-color:var(--gold)}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:13px;font-size:16px;font-weight:700;background:var(--gold);color:#20160A;transition:transform .08s}
+.btn:active{transform:scale(.985)}
+.btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--line);font-weight:600}
+.btn.danger{background:transparent;color:var(--ember);border:1px solid rgba(228,87,63,.4)}
+.ob-note{font-size:12px;color:var(--faint);text-align:center;margin-top:13px}
+/* identity card reveal */
+#ob-card{background:linear-gradient(160deg,#1C2440,#141A2E);border:1px solid var(--line);border-radius:18px;padding:20px;margin:4px 0 20px;position:relative;overflow:hidden}
+#ob-card::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 1px 1px, rgba(245,168,60,.12) 1px, transparent 1.6px) 0 0/18px 18px;pointer-events:none}
+.card-eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.card-id{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:.04em;margin:9px 0 3px}
+.card-name{color:var(--muted);font-size:14px}
+.card-hint{font-size:12px;color:var(--faint);margin-top:13px;line-height:1.5;position:relative}
+
+/* ---------- main shell ---------- */
+.top{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;background:var(--bg)}
+.top .brand{font-family:var(--disp);font-weight:800;font-size:20px;letter-spacing:-.01em;flex:1}
+.brand span{color:var(--gold)}
+.icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.icon-btn:active{background:var(--panel2)}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#141A2E;flex:none;position:relative}
+.avatar.small{width:30px;height:30px;font-size:12px}
+.tabs{display:flex;border-top:1px solid var(--line);background:var(--panel);padding-bottom:env(safe-area-inset-bottom)}
+.tab{flex:1;padding:10px 0 12px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--faint);font-weight:600}
+.tab.on{color:var(--gold)}
+.tab svg{opacity:.9}
+.tabpane{flex:1;overflow-y:auto;display:none}
+.tabpane.on{display:block}
+
+/* chats list */
+.search{margin:2px 16px 10px;background:var(--panel);border:1px solid var(--line);border-radius:11px;display:flex;align-items:center;gap:9px;padding:0 13px}
+.search input{flex:1;background:none;border:none;padding:11px 0}
+.search input:focus{outline:none}
+.chat-row{display:flex;gap:13px;padding:12px 16px;align-items:center}
+.chat-row:active{background:var(--panel)}
+.chat-mid{flex:1;min-width:0}
+.chat-name{font-weight:650;font-size:15.5px;display:flex;align-items:center;gap:6px}
+.chat-last{color:var(--muted);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.chat-side{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.chat-time{font-size:11.5px;color:var(--faint)}
+.badge{min-width:19px;height:19px;border-radius:10px;background:var(--gold);color:#20160A;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.vtag{font-size:10px;color:var(--ok);border:1px solid rgba(89,201,141,.35);border-radius:5px;padding:0 4px;font-weight:700}
+.empty{padding:50px 30px;text-align:center;color:var(--faint);font-size:14px;line-height:1.6}
+.empty b{color:var(--muted)}
+
+/* connect tab */
+.sect{padding:6px 16px 18px}
+.sect h3{font-family:var(--disp);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin:14px 0 10px}
+.qr-card{background:linear-gradient(160deg,#1C2440,#141A2E);border:1px solid var(--line);border-radius:18px;padding:18px;text-align:center}
+.qr-wrap{background:#fff;border-radius:14px;padding:10px;display:inline-block;margin:10px 0 12px}
+.qr-wrap svg{display:block;width:180px;height:180px}
+.myid{font-family:var(--mono);font-size:17px;letter-spacing:.05em;color:var(--gold)}
+.qr-sub{font-size:12px;color:var(--faint);margin-top:6px;line-height:1.5}
+.row2{display:flex;gap:10px;margin-top:10px}
+.row2 .btn{padding:12px;font-size:14px}
+.addrow{display:flex;gap:9px}
+.addrow input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 13px;font-family:var(--mono);font-size:14px;letter-spacing:.04em;text-transform:uppercase}
+.addrow input:focus{outline:none;border-color:var(--gold)}
+.addrow .btn{width:auto;padding:12px 18px;font-size:14px}
+.invite-box{background:var(--panel);border:1px dashed var(--line);border-radius:12px;padding:13px;display:flex;align-items:center;gap:10px;margin-top:10px}
+.invite-box .lnk{flex:1;font-family:var(--mono);font-size:12.5px;color:var(--text);word-break:break-all}
+.invite-box .ttl{font-size:11px;color:var(--ember);font-weight:700;white-space:nowrap}
+
+/* privacy tab */
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:0 0 12px;overflow:hidden}
+.pcard .ph{padding:13px 15px 4px;font-weight:700;font-size:14.5px}
+.pcard .ps{padding:0 15px 12px;color:var(--faint);font-size:12.5px;line-height:1.5}
+.prow{display:flex;justify-content:space-between;align-items:center;padding:11px 15px;border-top:1px solid var(--line);font-size:14px}
+.prow .k{color:var(--muted)}
+.prow .v{font-weight:650}
+.v.no{color:var(--ok)}
+.v.rel{color:var(--gold)}
+.prow select{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px}
+.fp{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.03em;line-height:1.7;word-break:break-all}
+
+/* ---------- chat screen ---------- */
+#chat-top{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;background:var(--panel);border-bottom:1px solid var(--line)}
+.chat-title{flex:1;min-width:0}
+.chat-title .n{font-weight:700;font-size:15.5px;display:flex;align-items:center;gap:6px}
+.chat-title .s{font-size:11.5px;color:var(--gold);display:flex;align-items:center;gap:4px;margin-top:1px}
+.chat-title .s.typing{color:var(--ok)}
+#msgs{flex:1;overflow-y:auto;padding:12px 12px 6px;display:flex;flex-direction:column;gap:3px;background:
+  radial-gradient(circle at 1px 1px, rgba(138,145,171,.05) 1px, transparent 1.6px) 0 0/22px 22px, var(--bg)}
+.daychip{align-self:center;background:var(--panel);color:var(--faint);font-size:11px;padding:4px 11px;border-radius:9px;margin:9px 0;font-weight:600}
+.enc-note{align-self:center;max-width:86%;text-align:center;background:rgba(245,168,60,.08);border:1px solid rgba(245,168,60,.22);color:var(--gold);font-size:11.5px;line-height:1.5;padding:8px 13px;border-radius:11px;margin:4px 0 10px}
+.brow{display:flex;margin:1.5px 0}
+.brow.mine{justify-content:flex-end}
+.bub{max-width:78%;padding:8px 11px 6px;border-radius:14px;font-size:14.5px;line-height:1.4;position:relative;word-wrap:break-word}
+.brow.mine .bub{background:var(--mine);border-bottom-right-radius:5px}
+.brow.theirs .bub{background:var(--theirs);border-bottom-left-radius:5px}
+.meta{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:3px;font-size:10.5px;color:var(--faint)}
+.tick{font-size:11px;letter-spacing:-.12em;color:var(--faint)}
+.tick.read{color:var(--gold)}
+.bub img{max-width:100%;border-radius:9px;display:block;margin-bottom:4px}
+.quote{border-left:3px solid var(--gold);background:rgba(0,0,0,.22);border-radius:7px;padding:5px 9px;font-size:12.5px;color:var(--muted);margin-bottom:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.quote b{display:block;color:var(--gold);font-size:11px;margin-bottom:1px}
+/* burn messages */
+.bub.burnable{border:1px dashed rgba(228,87,63,.55);background:rgba(228,87,63,.10)}
+.burn-cover{display:flex;align-items:center;gap:9px;padding:3px 2px;color:var(--ember);font-weight:650;font-size:13.5px}
+.burn-bar{height:3px;border-radius:2px;background:rgba(228,87,63,.25);margin:7px 0 3px;overflow:hidden}
+.burn-bar i{display:block;height:100%;background:var(--ember);width:100%;transform-origin:left}
+@keyframes burnbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@keyframes burnout{0%{opacity:1;filter:none}55%{filter:sepia(.9) hue-rotate(-28deg) saturate(2.4) contrast(1.1)}100%{opacity:0;transform:scale(.92) translateY(3px);filter:sepia(1) hue-rotate(-30deg) blur(2px)}}
+.burning{animation:burnout 1.1s ease-in forwards}
+.burned-stub{color:var(--faint);font-size:12.5px;font-style:italic;display:flex;gap:6px;align-items:center}
+/* typing */
+.typing-b .bub{display:flex;gap:4px;padding:12px 14px}
+.td{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:tb 1.1s infinite}
+.td:nth-child(2){animation-delay:.18s}.td:nth-child(3){animation-delay:.36s}
+@keyframes tb{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
+/* composer */
+#composer{background:var(--panel);border-top:1px solid var(--line);padding:8px 10px calc(env(safe-area-inset-bottom) + 8px)}
+#reply-bar{display:none;align-items:center;gap:9px;background:var(--panel2);border-radius:10px;padding:7px 11px;margin-bottom:7px}
+#reply-bar.on{display:flex}
+#reply-bar .q{flex:1;min-width:0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#reply-bar .q b{color:var(--gold);display:block;font-size:11px}
+.comp-row{display:flex;align-items:flex-end;gap:8px}
+#burn-toggle{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;filter:grayscale(1);opacity:.55;transition:.15s;flex:none}
+#burn-toggle.on{filter:none;opacity:1;background:rgba(228,87,63,.15);box-shadow:0 0 0 1px rgba(228,87,63,.5) inset}
+#attach-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none}
+#msg-in{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:10px 15px;max-height:110px;resize:none;line-height:1.35}
+#msg-in:focus{outline:none;border-color:var(--gold)}
+#send-btn{width:42px;height:42px;border-radius:50%;background:var(--gold);color:#20160A;display:flex;align-items:center;justify-content:center;flex:none}
+#send-btn:active{transform:scale(.94)}
+#burn-hint{font-size:11px;color:var(--ember);padding:5px 4px 0;display:none;font-weight:600}
+#burn-hint.on{display:block}
+
+/* ---------- sheets / modals ---------- */
+#backdrop{position:absolute;inset:0;background:rgba(4,6,12,.62);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+#backdrop.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--panel);border-radius:20px 20px 0 0;padding:10px 18px calc(env(safe-area-inset-bottom) + 20px);transform:translateY(105%);transition:transform .24s cubic-bezier(.3,.9,.3,1);z-index:50;max-height:82%;overflow-y:auto}
+.sheet.on{transform:translateY(0)}
+.grab{width:38px;height:4px;border-radius:3px;background:var(--line);margin:2px auto 14px}
+.sheet h2{font-family:var(--disp);font-weight:700;font-size:18px;margin-bottom:4px}
+.sheet .sub{color:var(--faint);font-size:13px;margin-bottom:14px;line-height:1.5}
+.p-row{display:flex;align-items:center;gap:12px;padding:11px 4px;border-radius:11px}
+.p-row:active{background:var(--panel2)}
+.p-row .pm{flex:1}
+.p-row .pn{font-weight:650;font-size:15px}
+.p-row .pid{font-family:var(--mono);font-size:12px;color:var(--faint)}
+.p-row .cur{color:var(--gold);font-size:12px;font-weight:700}
+.mi-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.mi-row:last-child{border:none}
+.mi-row .k{color:var(--faint)}
+.mi-row .v{text-align:right;font-weight:600}
+.menu-it{display:flex;align-items:center;gap:12px;padding:13px 6px;font-size:15px;font-weight:600;border-radius:11px}
+.menu-it:active{background:var(--panel2)}
+.menu-it.red{color:var(--ember)}
+/* toast */
+#toast{position:absolute;left:50%;bottom:92px;transform:translate(-50%,14px);background:#242C4C;border:1px solid var(--line);color:var(--text);font-size:13.5px;font-weight:600;padding:11px 17px;border-radius:12px;opacity:0;transition:.22s;z-index:70;pointer-events:none;max-width:86%;text-align:center}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="phone">
+
+  <!-- ONBOARDING -->
+  <div class="scr on" id="scr-onboard">
+    <div>
+      <div class="ob-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="10" width="18" height="11" rx="3" fill="#F5A83C"/><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="#F5A83C" stroke-width="2.4"/><circle cx="12" cy="15.5" r="1.8" fill="#0D1120"/></svg>
+        GuptChat
+      </div>
+      <div id="ob-step1">
+        <h1 class="ob-h1">Chat with anyone.<br>Share your number with <em>no one.</em></h1>
+        <ul class="ob-points">
+          <li><span class="dot"></span><span><b>No phone number, ever.</b> Your Gupt ID is all anyone sees.</span></li>
+          <li><span class="dot"></span><span><b>Your phone is the server.</b> Messages live only on your device — we relay and delete.</span></li>
+          <li><span class="dot"></span><span><b>Burn-on-read.</b> Send messages that destroy themselves after one viewing.</span></li>
+        </ul>
+        <div class="field">
+          <label for="ob-name">Pick a display name</label>
+          <input id="ob-name" maxlength="24" placeholder="e.g. Somu" autocomplete="off">
+        </div>
+        <button class="btn" style="margin-top:14px" onclick="obCreate()">Create my Gupt ID</button>
+        <p class="ob-note">No OTP. No SIM. No email. Nothing to verify.</p>
+      </div>
+      <div id="ob-step2" class="hide">
+        <h1 class="ob-h1">This is <em>you.</em></h1>
+        <div id="ob-card">
+          <div class="card-eyebrow">Gupt Identity</div>
+          <div class="card-id" id="ob-card-id">GUPT-····-····</div>
+          <div class="card-name" id="ob-card-name"></div>
+          <div class="card-hint">Generated on this phone. Not linked to your SIM, email, or Aadhaar. Share it only with people you choose.</div>
+        </div>
+        <button class="btn" onclick="obEnter()">Enter GuptChat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="scr" id="scr-main">
+    <div class="top">
+      <button class="avatar" id="me-avatar" onclick="openSheet('sheet-personas')">S</button>
+      <div class="brand">Gupt<span>Chat</span></div>
+      <button class="icon-btn" onclick="openMyQR()" aria-label="My QR code">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14h1M14 20h1M20 20h1"/></svg>
+      </button>
+    </div>
+    <div class="tabpane on" id="pane-chats">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5A6180" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="chat-search" placeholder="Search chats" oninput="renderChats()">
+      </div>
+      <div id="chat-list"></div>
+    </div>
+    <div class="tabpane" id="pane-connect"><div class="sect" id="connect-body"></div></div>
+    <div class="tabpane" id="pane-privacy"><div class="sect" id="privacy-body"></div></div>
+    <div class="tabs">
+      <button class="tab on" data-pane="pane-chats" onclick="switchTab(this)">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8.5 8.5 0 0 1-8.5 8.5c-1.6 0-3.1-.4-4.4-1.2L3 21l1.7-5.1A8.5 8.5 0 1 1 21 12Z"/></svg>
+        Chats</button>
+      <button class="tab" data-pane="pane-connect" onclick="switchTab(this)">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><path d="M17 8h5M19.5 5.5v5"/></svg>
+        Connect</button>
+      <button class="tab" data-pane="pane-privacy" onclick="switchTab(this)">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.5 4.5 5.5v5c0 4.8 3.2 8.6 7.5 10.5 4.3-1.9 7.5-5.7 7.5-10.5v-5L12 2.5Z"/><path d="m8.8 11.8 2.2 2.2 4.2-4.5"/></svg>
+        Privacy</button>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="scr" id="scr-chat">
+    <div id="chat-top">
+      <button class="icon-btn" onclick="closeChat()" aria-label="Back">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="avatar small" id="chat-avatar">R</div>
+      <div class="chat-title">
+        <div class="n" id="chat-name">—</div>
+        <div class="s" id="chat-sub">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="2.6" fill="none"/></svg>
+          <span id="chat-sub-t">End-to-end encrypted</span>
+        </div>
+      </div>
+      <button class="icon-btn" onclick="openTimerSheet()" aria-label="Disappearing messages">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2.5h6"/></svg>
+      </button>
+    </div>
+    <div id="msgs"></div>
+    <div id="composer">
+      <div id="reply-bar">
+        <div class="q"><b id="reply-who"></b><span id="reply-txt"></span></div>
+        <button class="icon-btn" onclick="clearReply()" style="width:30px;height:30px">✕</button>
+      </div>
+      <div class="comp-row">
+        <button id="burn-toggle" onclick="toggleBurn()" title="Burn on read">🔥</button>
+        <button id="attach-btn" onclick="document.getElementById('img-in').click()" aria-label="Attach photo">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="9" cy="11" r="2"/><path d="m5 19 5.5-5.5L14 17l3-3 4 4"/></svg>
+        </button>
+        <textarea id="msg-in" rows="1" placeholder="Message"></textarea>
+        <button id="send-btn" onclick="sendMsg()" aria-label="Send">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21.8 12 3.4 3.6l2.8 6.9 9.3 1.5-9.3 1.5-2.8 6.9Z"/></svg>
+        </button>
+      </div>
+      <div id="burn-hint">🔥 Burn-on-read is ON — this message destroys itself after being viewed once.</div>
+      <input type="file" id="img-in" accept="image/*" class="hide" onchange="sendImage(this)">
+    </div>
+  </div>
+
+  <!-- SHEETS -->
+  <div id="backdrop" onclick="closeSheets()"></div>
+
+  <div class="sheet" id="sheet-personas">
+    <div class="grab"></div>
+    <h2>My personas</h2>
+    <p class="sub">One phone, many identities. Each persona has its own Gupt ID and its own chats — nobody can link them together.</p>
+    <div id="persona-list"></div>
+    <div class="addrow" style="margin-top:12px">
+      <input id="new-persona" placeholder="NEW PERSONA NAME" style="text-transform:none;font-family:var(--body)">
+      <button class="btn" onclick="addPersona()">Add</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet-qr">
+    <div class="grab"></div>
+    <div id="qr-body"></div>
+  </div>
+
+  <div class="sheet" id="sheet-msginfo">
+    <div class="grab"></div>
+    <div id="msginfo-body"></div>
+  </div>
+
+  <div class="sheet" id="sheet-msgmenu">
+    <div class="grab"></div>
+    <div id="msgmenu-body"></div>
+  </div>
+
+  <div class="sheet" id="sheet-timer">
+    <div class="grab"></div>
+    <h2>Disappearing messages</h2>
+    <p class="sub">New messages in this chat auto-delete from both phones after the chosen time.</p>
+    <div id="timer-opts"></div>
+  </div>
+
+  <div id="toast"></div>
+</div>
