@@ -27,6 +27,7 @@ switch ($action) {
   case 'lookup':        lookup($pdo, $in); break;
   case 'send':          send($pdo, $in); break;
   case 'fetch':         fetchMsgs($pdo, $in); break;
+  case 'check':        checkUsername($pdo, $in); break;
   case 'ping':          out(true, ['pong' => time()]); break;
   default:              out(false, ['error' => 'unknown_action']);
 }
@@ -35,29 +36,39 @@ switch ($action) {
 
 function register(PDO $pdo, array $in): void {
   $name = trim((string)($in['name'] ?? ''));
+  $username = strtolower(trim((string)($in['username'] ?? ''), " @"));
   $pubkey = $in['pubkey'] ?? null; // JWK (public only)
   if ($name === '' || mb_strlen($name) > 24 || !is_array($pubkey)) out(false, ['error' => 'bad_input']);
+  if (!preg_match('/^[a-z0-9_]{3,20}$/', $username)) out(false, ['error' => 'bad_username']);
+  $st = $pdo->prepare('SELECT 1 FROM k_users WHERE username = ?'); $st->execute([$username]);
+  if ($st->fetch()) out(false, ['error' => 'username_taken']);
   unset($pubkey['d']); // never accept private material
   $token = bin2hex(random_bytes(24));
   for ($i = 0; $i < 8; $i++) {
     $kid = kalId();
     try {
-      $st = $pdo->prepare('INSERT INTO k_users (kal_id, name, pubkey, token, created_at, last_seen) VALUES (?,?,?,?,NOW(),NOW())');
-      $st->execute([$kid, $name, json_encode($pubkey), $token]);
-      out(true, ['kal_id' => $kid, 'token' => $token]);
+      $st = $pdo->prepare('INSERT INTO k_users (kal_id, username, name, pubkey, token, created_at, last_seen) VALUES (?,?,?,?,?,NOW(),NOW())');
+      $st->execute([$kid, $username, $name, json_encode($pubkey), $token]);
+      out(true, ['kal_id' => $kid, 'username' => $username, 'token' => $token]);
     } catch (PDOException $e) { /* duplicate id, retry */ }
   }
   out(false, ['error' => 'id_gen_failed']);
 }
 
 function lookup(PDO $pdo, array $in): void {
-  $kid = strtoupper(trim((string)($in['kal_id'] ?? '')));
-  if (!preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $kid)) out(false, ['error' => 'bad_id']);
-  $st = $pdo->prepare('SELECT kal_id, name, pubkey FROM k_users WHERE kal_id = ?');
-  $st->execute([$kid]);
+  $h = trim((string)($in['handle'] ?? ($in['kal_id'] ?? '')));
+  if (preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/i', $h)) {
+    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey FROM k_users WHERE kal_id = ?');
+    $st->execute([strtoupper($h)]);
+  } else {
+    $u = strtolower(trim($h, " @"));
+    if (!preg_match('/^[a-z0-9_]{3,20}$/', $u)) out(false, ['error' => 'bad_id']);
+    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey FROM k_users WHERE username = ?');
+    $st->execute([$u]);
+  }
   $u = $st->fetch();
   if (!$u) out(false, ['error' => 'not_found']);
-  out(true, ['user' => ['kal_id' => $u['kal_id'], 'name' => $u['name'], 'pubkey' => json_decode($u['pubkey'], true)]]);
+  out(true, ['user' => ['kal_id' => $u['kal_id'], 'username' => $u['username'], 'name' => $u['name'], 'pubkey' => json_decode($u['pubkey'], true)]]);
 }
 
 function send(PDO $pdo, array $in): void {
@@ -104,6 +115,13 @@ function fetchMsgs(PDO $pdo, array $in): void {
   out(true, $out);
 }
 
+function checkUsername(PDO $pdo, array $in): void {
+  $u = strtolower(trim((string)($in['username'] ?? ''), " @"));
+  if (!preg_match('/^[a-z0-9_]{3,20}$/', $u)) out(true, ['available' => false, 'reason' => 'invalid']);
+  $st = $pdo->prepare('SELECT 1 FROM k_users WHERE username = ?'); $st->execute([$u]);
+  out(true, ['available' => !$st->fetch()]);
+}
+
 /* ---------------- helpers ---------------- */
 
 function auth(PDO $pdo, array $in): array {
@@ -126,12 +144,15 @@ function kalId(): string {
 function migrate(PDO $pdo): void {
   $pdo->exec("CREATE TABLE IF NOT EXISTS k_users (
     kal_id VARCHAR(14) PRIMARY KEY,
+    username VARCHAR(20) NOT NULL DEFAULT '',
     name VARCHAR(48) NOT NULL,
     pubkey TEXT NOT NULL,
     token VARCHAR(64) NOT NULL,
     created_at DATETIME NOT NULL,
     last_seen DATETIME NOT NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  try { $pdo->exec("ALTER TABLE k_users ADD COLUMN username VARCHAR(20) NOT NULL DEFAULT ''"); } catch (Throwable $e) {}
+  try { $pdo->exec("CREATE UNIQUE INDEX idx_username ON k_users (username)"); } catch (Throwable $e) {}
   $pdo->exec("CREATE TABLE IF NOT EXISTS k_queue (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     to_id VARCHAR(14) NOT NULL,

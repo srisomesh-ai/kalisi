@@ -218,8 +218,12 @@ input,textarea,select{font-family:inherit;font-size:16px;color:var(--text)}
           <li><span class="dot"></span><span><b>Burn-on-read.</b> Send messages that destroy themselves after one viewing.</span></li>
         </ul>
         <div class="field">
-          <label for="ob-name">Pick a display name</label>
+          <label for="ob-name">Your display name</label>
           <input id="ob-name" maxlength="24" placeholder="e.g. Somu" autocomplete="off">
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label for="ob-user">Choose your @username</label>
+          <input id="ob-user" maxlength="20" placeholder="e.g. somu" autocomplete="off" autocapitalize="none" style="font-family:var(--mono)">
         </div>
         <button class="btn" style="margin-top:14px" onclick="obCreate()">Create my Kalisi ID</button>
         <p class="ob-note">No OTP. No SIM. No email. Nothing to verify.</p>
@@ -2652,7 +2656,7 @@ let pollTimer=null;
 
 async function api(action,body){
   const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...body})});
-  const j=await r.json();
+  let j; try{ j=await r.json(); }catch(e){ throw new Error('bad_response'); }
   if(!j.ok)throw new Error(j.error||'api_error');
   return j;
 }
@@ -2689,11 +2693,11 @@ async function decryptFrom(c,iv,blob){
 }
 
 /* ---- real contacts ---- */
-async function connectReal(kalIdStr){
-  const {user}=await api('lookup',{kal_id:kalIdStr});
+async function connectReal(handle){
+  const {user}=await api('lookup',{handle});
   let c=D().contacts.find(x=>x.kalId===user.kal_id);
   if(!c){
-    c={id:uid(),name:user.name,kalId:user.kal_id,color:COLORS[Math.floor(Math.random()*COLORS.length)],real:true,pubkey:user.pubkey};
+    c={id:uid(),name:user.name,username:user.username||'',kalId:user.kal_id,color:COLORS[Math.floor(Math.random()*COLORS.length)],real:true,pubkey:user.pubkey};
     D().contacts.push(c); chat(c.id); save(); renderChats();
   }
   return c;
@@ -2772,6 +2776,7 @@ async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncod
 function save(){localStorage.setItem(LS_KEY,JSON.stringify(S));}
 function load(){try{S=JSON.parse(localStorage.getItem(LS_KEY));}catch(e){S=null;}}
 function me(){return S.identities.find(i=>i.id===S.active);}
+function handleOf(o){return o.username?'@'+o.username:o.kalId;}
 function D(){return S.data[S.active];}
 function contact(id){return D().contacts.find(c=>c.id===id);}
 function chat(id){if(!D().chats[id])D().chats[id]={msgs:[],timer:0,unread:0};return D().chats[id];}
@@ -2793,7 +2798,7 @@ function botReply(c){
 function seedIdentity(name,reg){
   const id=uid();
   const ident={id,name,kalId:reg?reg.kalId:kalId(),color:COLORS[0],created:now()};
-  if(reg){ident.token=reg.token;ident.pub=reg.pub;ident.priv=reg.priv;}
+  if(reg){ident.username=reg.username;ident.token=reg.token;ident.pub=reg.pub;ident.priv=reg.priv;}
   S={v:1,identities:[ident],active:id,data:{}};
   S.data[id]=freshData(true);
   save();
@@ -2826,16 +2831,22 @@ function freshData(withDemos){
 async function obCreate(){
   const n=$('ob-name').value.trim();
   if(!n){toast('Enter a name first');return;}
-  toast('Creating your Kalisi ID…');
+  const un=($('ob-user').value||'').trim().replace(/^@/,'').toLowerCase();
+  if(!/^[a-z0-9_]{3,20}$/.test(un)){toast('Username: 3–20 letters, numbers or _');return;}
+  toast('Creating @'+un+'…');
   let reg=null;
   try{
     const keys=await genKeys();
-    const r=await api('register',{name:n,pubkey:keys.pub});
-    reg={kalId:r.kal_id,token:r.token,pub:keys.pub,priv:keys.priv};
-  }catch(e){ toast('Server unreachable — offline demo mode'); }
+    const r=await api('register',{name:n,username:un,pubkey:keys.pub});
+    reg={kalId:r.kal_id,username:r.username,token:r.token,pub:keys.pub,priv:keys.priv};
+  }catch(e){
+    if(e.message==='username_taken'){toast('@'+un+' is taken — try another');return;}
+    if(e.message==='bad_username'){toast('Username: 3–20 letters, numbers or _');return;}
+    toast('Server unreachable — offline demo mode');
+  }
   const ident=seedIdentity(n,reg);
-  $('ob-card-id').textContent=ident.kalId;
-  $('ob-card-name').textContent=n+' · created just now on this device';
+  $('ob-card-id').textContent=ident.username?'@'+ident.username:ident.kalId;
+  $('ob-card-name').textContent=n+' · '+ident.kalId;
   $('ob-step1').classList.add('hide');
   $('ob-step2').classList.remove('hide');
 }
@@ -2895,17 +2906,17 @@ function renderConnect(){
   $('connect-body').innerHTML=`
     <h3>My code</h3>
     <div class="qr-card">
-      <div class="myid">${esc(m.kalId)}</div>
+      <div class="myid">${esc(handleOf(m))}</div>
       <div class="qr-wrap" id="qr-slot"></div>
-      <div class="qr-sub">Friends scan this in person to connect.<br>No phone number is exchanged — ever.</div>
+      <div class="qr-sub">Friends type <b style="color:var(--gold)">${esc(handleOf(m))}</b> or scan this to connect.<br>No phone number is exchanged — ever.</div>
       <div class="row2">
-        <button class="btn ghost" onclick="copyText('${m.kalId}','Kalisi ID copied')">Copy ID</button>
+        <button class="btn ghost" onclick="copyText('${esc(handleOf(m))}','Copied — share it anywhere')">Copy</button>
         <button class="btn ghost" onclick="simulateScan()">Simulate a friend scanning</button>
       </div>
     </div>
-    <h3>Add by Kalisi ID</h3>
+    <h3>Add a friend</h3>
     <div class="addrow">
-      <input id="add-id" placeholder="KAL-XXXX-XXXX" maxlength="13">
+      <input id="add-id" placeholder="@username" maxlength="20" autocapitalize="none">
       <button class="btn" onclick="addById()">Add</button>
     </div>
     <h3>One-time invite link</h3>
@@ -2915,7 +2926,7 @@ function renderConnect(){
       <div class="lnk" id="invite-link"></div>
       <div class="ttl" id="invite-ttl">10:00</div>
     </div>`;
-  drawQR('qr-slot',m.kalId);
+  drawQR('qr-slot',handleOf(m));
 }
 function drawQR(slotId,text){
   try{
@@ -2929,11 +2940,11 @@ function openMyQR(){
     <h2>My Kalisi ID</h2>
     <p class="sub">Show this to a friend. They scan → you're connected. Your number stays yours.</p>
     <div class="qr-card">
-      <div class="myid">${esc(m.kalId)}</div>
+      <div class="myid">${esc(handleOf(m))}</div>
       <div class="qr-wrap" id="qr-slot2"></div>
       <div class="qr-sub">${esc(m.name)} · persona created ${fmtDay(m.created)}</div>
     </div>`;
-  openSheet('sheet-qr'); drawQR('qr-slot2',m.kalId);
+  openSheet('sheet-qr'); drawQR('qr-slot2',handleOf(m));
 }
 function simulateScan(){
   const names=[['Anil K','#5FC9C9','priya'],['Suresh V','#B58CF0','ravi'],['Deepika','#E4A05F','priya'],['Karthik','#59C98D','ravi']];
@@ -2944,14 +2955,16 @@ function simulateScan(){
   setTimeout(()=>{ botSend(c.id,'Hey! Scanned your QR, we are connected on Kalisi now 🙌'); },1200);
 }
 async function addById(){
-  const v=$('add-id').value.trim().toUpperCase();
-  if(!/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(v)){toast('Format: KAL-XXXX-XXXX');return;}
-  if(v===me().kalId){toast("That's your own ID 🙂");return;}
-  if(D().contacts.some(c=>c.kalId===v)){toast('Already in your contacts');return;}
+  let v=$('add-id').value.trim();
+  if(!v){toast('Type a @username');return;}
+  const isKal=/^KAL-/i.test(v);
+  if(isKal)v=v.toUpperCase(); else v=v.replace(/^@/,'').toLowerCase();
+  if(v===me().kalId||v===me().username){toast("That's you 🙂");return;}
+  if(D().contacts.some(c=>c.kalId===v||c.username===v)){toast('Already in your contacts');return;}
   try{
     const c=await connectReal(v);
-    $('add-id').value=''; toast('Connected to '+c.name+' ✅');
-  }catch(e){ toast(e.message==='not_found'?'No Kalisi user with that ID':'Could not reach server'); }
+    $('add-id').value=''; toast('Connected to '+handleOf(c)+' ✅');
+  }catch(e){ toast(e.message==='not_found'?'No Kalisi user with that name':'Could not reach server'); }
 }
 function makeInvite(){
   const code=Math.random().toString(36).slice(2,8).toUpperCase();
@@ -3021,7 +3034,7 @@ function renderPersonas(){
   for(const p of S.identities){
     const row=document.createElement('div'); row.className='p-row';
     row.innerHTML=`${avatarHTML(p)}
-      <div class="pm"><div class="pn">${esc(p.name)}</div><div class="pid">${esc(p.kalId)}</div></div>
+      <div class="pm"><div class="pn">${esc(p.name)}</div><div class="pid">${esc(handleOf(p))}</div></div>
       ${p.id===S.active?'<div class="cur">ACTIVE</div>':''}`;
     row.onclick=()=>{ if(p.id!==S.active){S.active=p.id;save();closeSheets();renderAll();toast('Switched to '+p.name);} };
     list.appendChild(row);
@@ -3031,15 +3044,17 @@ async function addPersona(){
   const n=$('new-persona').value.trim();
   if(!n){toast('Give the persona a name');return;}
   if(S.identities.length>=5){toast('Max 5 personas in prototype');return;}
+  let un=n.toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,14)||'user';
+  un=un+Math.floor(100+Math.random()*900);
   let reg=null;
   try{
     const keys=await genKeys();
-    const r=await api('register',{name:n,pubkey:keys.pub});
-    reg={kalId:r.kal_id,token:r.token,pub:keys.pub,priv:keys.priv};
+    const r=await api('register',{name:n,username:un,pubkey:keys.pub});
+    reg={kalId:r.kal_id,username:r.username,token:r.token,pub:keys.pub,priv:keys.priv};
   }catch(e){ toast('Server unreachable — offline persona'); }
   const id=uid();
   const np={id,name:n,kalId:reg?reg.kalId:kalId(),color:COLORS[S.identities.length%COLORS.length],created:now()};
-  if(reg){np.token=reg.token;np.pub=reg.pub;np.priv=reg.priv;}
+  if(reg){np.username=reg.username;np.token=reg.token;np.pub=reg.pub;np.priv=reg.priv;}
   S.identities.push(np);
   S.data[id]=freshData(false);
   S.active=id; save();
