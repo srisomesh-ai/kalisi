@@ -19,7 +19,6 @@
   <!-- ============ LANDING (marketing homepage) ============ -->
   <div class="scr on" id="scr-landing">
     <div class="land-scroll">
-      <!-- hero -->
       <header class="land-nav">
         <div class="land-logo">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="10" width="18" height="11" rx="3" fill="#F5A83C"/><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="#F5A83C" stroke-width="2.4"/><circle cx="12" cy="15.5" r="1.8" fill="#0D1120"/></svg>
@@ -29,76 +28,84 @@
       </header>
 
       <section class="hero">
-        <div class="hero-badge">🇮🇳 Made in India · No phone number needed</div>
-        <h1 class="hero-h1">Chat freely.<br>Stay <em>invisible.</em></h1>
-        <p class="hero-sub">Kalisi is the messenger where you're a <b>@username</b>, not a phone number. End-to-end encrypted. Your chats live only on your phone — our server forgets everything the moment it's delivered.</p>
+        <div class="hero-badge">🔒 End-to-end encrypted · Made in India</div>
+        <h1 class="hero-h1">Your privacy,<br><em>respected.</em></h1>
+        <p class="hero-sub">Kalisi is a messenger built on a simple belief — <b>your conversations belong to you.</b> No phone number to share, no data harvested, no one reading over your shoulder. Just honest, secure conversation between you and the people you trust.</p>
         <div class="hero-cta">
           <button class="btn hero-start" onclick="landStart()">Create your free account</button>
           <button class="btn ghost" onclick="landRestore()">I already have an account</button>
         </div>
+        <div class="trust-line">
+          <span>✓ No ads</span><span>✓ No tracking</span><span>✓ No phone number</span>
+        </div>
         <div class="hero-phone">
           <div class="hp-frame">
-            <div class="hp-bubble them">Hey! Found you by @username 😄</div>
-            <div class="hp-bubble me">No number shared. Love it 🔒<span class="hp-tick">✓✓</span></div>
-            <div class="hp-bubble them burn">🔥 Tap to view once</div>
-            <div class="hp-bubble me">This is the future of private chat<span class="hp-tick">✓✓</span></div>
+            <div class="hp-secure">🔒 End-to-end encrypted</div>
+            <div class="hp-bubble them">Is this really private?</div>
+            <div class="hp-bubble me">Fully. Not even Kalisi can read it 💛<span class="hp-tick">✓✓</span></div>
+            <div class="hp-bubble them">No number needed either?</div>
+            <div class="hp-bubble me">Just my @username. That's it.<span class="hp-tick">✓✓</span></div>
           </div>
         </div>
       </section>
 
-      <!-- feature strip -->
       <section class="land-sec">
-        <h2 class="land-h2">Privacy that actually means something</h2>
+        <h2 class="land-h2">Privacy you can actually trust</h2>
+        <p class="land-lede">We designed Kalisi so that protecting your privacy isn't a setting you switch on — it's how the app works by default.</p>
         <div class="feat-grid">
           <div class="feat">
             <div class="feat-ic" style="background:rgba(245,168,60,.14)">🪪</div>
-            <h3>No phone number</h3>
-            <p>Sign up with just a @username. No OTP, no SIM, no contact upload. Strangers can't find you.</p>
+            <h3>You, without the phone number</h3>
+            <p>Sign up with a simple @username. Share it freely — your personal number stays yours.</p>
           </div>
           <div class="feat">
             <div class="feat-ic" style="background:rgba(89,201,141,.14)">🔒</div>
-            <h3>End-to-end encrypted</h3>
-            <p>Keys are born on your phone and never leave. We couldn't read your messages if we tried.</p>
+            <h3>Encrypted end to end</h3>
+            <p>Every message is sealed on your device. Only you and the person you're talking to can read it.</p>
           </div>
           <div class="feat">
-            <div class="feat-ic" style="background:rgba(127,168,245,.14)">📮</div>
-            <h3>Relay &amp; delete</h3>
-            <p>Our server is a postman, not a warehouse. Delivered means deleted — with a receipt to prove it.</p>
+            <div class="feat-ic" style="background:rgba(127,168,245,.14)">🤝</div>
+            <h3>You choose who connects</h3>
+            <p>People send a request first. Nobody messages you or sees your status until you accept.</p>
           </div>
           <div class="feat">
-            <div class="feat-ic" style="background:rgba(228,87,63,.14)">🔥</div>
-            <h3>Burn-on-read</h3>
-            <p>Send a message that self-destructs after a single view, on both phones.</p>
+            <div class="feat-ic" style="background:rgba(181,140,240,.14)">📮</div>
+            <h3>We keep nothing</h3>
+            <p>Our servers pass your messages along, then forget them. Your history lives with you, not us.</p>
           </div>
           <div class="feat">
-            <div class="feat-ic" style="background:rgba(181,140,240,.14)">🎭</div>
-            <h3>Personas</h3>
-            <p>One phone, many unlinkable identities. Family, business, strangers — kept apart.</p>
+            <div class="feat-ic" style="background:rgba(228,87,63,.14)">🎙️</div>
+            <h3>Rich, private conversations</h3>
+            <p>Voice notes, photos, groups and 24-hour status — all with the same protection, all included free.</p>
           </div>
           <div class="feat">
-            <div class="feat-ic" style="background:rgba(95,201,201,.14)">🎙️</div>
-            <h3>Voice messages</h3>
-            <p>Record and send encrypted voice notes. Heard once, then gone if you choose.</p>
+            <div class="feat-ic" style="background:rgba(95,201,201,.14)">💛</div>
+            <h3>Honest by design</h3>
+            <p>No ads. No selling your data. No tracking you around. Just a messenger that works for you.</p>
           </div>
         </div>
       </section>
 
-      <!-- how it works -->
       <section class="land-sec alt">
-        <h2 class="land-h2">How Kalisi keeps you safe</h2>
+        <h2 class="land-h2">Simple to trust, simple to use</h2>
         <div class="how-steps">
-          <div class="how-step"><span class="how-n">1</span><div><b>You pick a @username</b><p>Your identity is generated on your device — not tied to your SIM, email or Aadhaar.</p></div></div>
-          <div class="how-step"><span class="how-n">2</span><div><b>Messages are sealed on your phone</b><p>Before anything leaves your device, it's encrypted with keys only you and your friend hold.</p></div></div>
-          <div class="how-step"><span class="how-n">3</span><div><b>The server relays, then forgets</b><p>Your friend's phone collects the sealed message; the server deletes its copy instantly.</p></div></div>
-          <div class="how-step"><span class="how-n">4</span><div><b>Only you hold your history</b><p>Chats live on your phone. Back them up with a key only you can unlock.</p></div></div>
+          <div class="how-step"><span class="how-n">1</span><div><b>Pick your @username</b><p>Created right on your device. No SIM, no email, no verification queues.</p></div></div>
+          <div class="how-step"><span class="how-n">2</span><div><b>Connect with people you trust</b><p>Share your username or QR. A quick request-and-accept keeps strangers out.</p></div></div>
+          <div class="how-step"><span class="how-n">3</span><div><b>Talk freely</b><p>Chats, voice notes, photos and status — protected end to end, always.</p></div></div>
+          <div class="how-step"><span class="how-n">4</span><div><b>Stay in control</b><p>Your chats stay on your phone. Back them up with a key only you hold.</p></div></div>
         </div>
       </section>
 
-      <!-- final CTA -->
+      <section class="land-quote">
+        <div class="lq-mark">“</div>
+        <p class="lq-text">Privacy isn't about hiding. It's about being respected. Kalisi is built to keep your trust — nothing more, nothing less.</p>
+      </section>
+
       <section class="land-final">
-        <h2 class="land-h2">Your conversations. Nobody else's business.</h2>
-        <button class="btn hero-start" onclick="landStart()">Get started — it's free</button>
-        <p class="land-foot">Kalisi · kalisi.app · Private messenger · Made in India 🇮🇳<br>No ads · No tracking · No phone number</p>
+        <h2 class="land-h2">You're in good hands.</h2>
+        <p class="land-lede" style="margin-bottom:22px">Join the messenger that treats your privacy as it should be treated — as yours.</p>
+        <button class="btn hero-start" onclick="landStart()">Get started — free forever</button>
+        <p class="land-foot">Kalisi · kalisi.app · Private messenger · Made in India 🇮🇳<br>End-to-end encrypted · No ads · No tracking</p>
       </section>
     </div>
   </div>
@@ -112,11 +119,11 @@
         Kalisi
       </div>
       <div id="ob-step1">
-        <h1 class="ob-h1">Chat with anyone.<br>Share your number with <em>no one.</em></h1>
+        <h1 class="ob-h1">Welcome to<br><em>Kalisi.</em></h1>
         <ul class="ob-points">
-          <li><span class="dot"></span><span><b>No phone number, ever.</b> Your Kalisi ID is all anyone sees.</span></li>
-          <li><span class="dot"></span><span><b>Your phone is the server.</b> Messages live only on your device — we relay and delete.</span></li>
-          <li><span class="dot"></span><span><b>Burn-on-read.</b> Send messages that destroy themselves after one viewing.</span></li>
+          <li><span class="dot"></span><span><b>No phone number needed.</b> Just pick a @username — share it freely.</span></li>
+          <li><span class="dot"></span><span><b>Encrypted end to end.</b> Only you and your contact can read your chats.</span></li>
+          <li><span class="dot"></span><span><b>You stay in control.</b> Your chats live on your phone, backed up only by you.</span></li>
         </ul>
         <div class="field">
           <label for="ob-name">Your display name</label>
