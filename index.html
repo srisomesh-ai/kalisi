@@ -364,6 +364,8 @@ input,textarea,select{font-family:inherit;font-size:16px;color:var(--text)}
       <div class="ps">One phone, up to five separate identities — family, business, strangers. Different @usernames, separate chats, impossible to link together.</div></div>
     <div class="pcard"><div class="ph">💾 Backups only you control</div>
       <div class="ps">Nothing is stored in any cloud. Save an encrypted backup file, keep it anywhere, and restore it on a new phone with your passphrase. Without the passphrase, the file is unreadable — even to us.</div></div>
+    <div class="pcard"><div class="ph">🛡 Impersonation protection</div>
+      <div class="ps">Every account has a permanent identity key. If a @username ever points to a different person — for example after the 90-day expiry — Kalisi shows a loud security warning and marks the chat "ID CHANGED". Nobody can silently pretend to be your friend.</div></div>
     <div class="pcard"><div class="ph">⏳ Username policy</div>
       <div class="ps">Your @username is locked to you while you're active. If an account is unused for 90 days, the handle is released so someone else can register it. Your chats and KAL-ID are never touched — just open Kalisi once in a while to keep your name.</div></div>
     <p class="qr-sub" style="text-align:center;margin-top:6px">Kalisi · kalisi.app · made in India 🇮🇳</p>
@@ -2719,6 +2721,12 @@ async function decryptFrom(c,iv,blob){
 async function connectReal(handle){
   const {user}=await api('lookup',{handle});
   let c=D().contacts.find(x=>x.kalId===user.kal_id);
+  // impersonation guard: same username, different underlying identity
+  const old=user.username?D().contacts.find(x=>x.username===user.username&&x.kalId!==user.kal_id):null;
+  if(old&&!c){
+    old.name=old.name+' (old)'; old.username=''; old.idChanged=true;
+    alert('⚠️ SECURITY WARNING\n\n@'+user.username+' is now a DIFFERENT person than before.\n\nThe previous @'+user.username+' let the name expire, and someone new has registered it. Their identity key does not match.\n\nDo NOT share anything private until you verify who this is — compare key fingerprints in person or on a call.');
+  }
   if(!c){
     c={id:uid(),name:user.name,username:user.username||'',kalId:user.kal_id,color:COLORS[Math.floor(Math.random()*COLORS.length)],real:true,pubkey:user.pubkey};
     D().contacts.push(c); chat(c.id); save(); renderChats();
@@ -2790,6 +2798,13 @@ async function pollOnce(){
   for(const pkt of res.messages){
     let c=D().contacts.find(x=>x.kalId===pkt.from);
     if(!c){ try{ c=await connectReal(pkt.from); }catch(e){ continue; } }
+    if(c._pkCheck===undefined){
+      try{ const {user}=await api('lookup',{handle:c.kalId});
+        c._pkCheck=JSON.stringify(user.pubkey)===JSON.stringify(c.pubkey);
+        if(!c._pkCheck){ c.idChanged=true; save();
+          alert('⚠️ SECURITY WARNING\n\nThe encryption key for '+(c.username?'@'+c.username:c.name)+' has CHANGED. This should never happen.\n\nDo not send anything sensitive to this contact until you verify their identity in person.'); }
+      }catch(e){}
+    }
     let body; try{ body=await decryptFrom(c,pkt.iv,pkt.blob); }catch(e){ continue; }
     changed=true;
     if(body.kind==='read'){ // peer read my messages
@@ -2950,7 +2965,7 @@ function renderChats(){
     const row=document.createElement('div'); row.className='chat-row';
     row.innerHTML=`${avatarHTML(c)}
       <div class="chat-mid">
-        <div class="chat-name">${esc(c.name)} ${c.verified?'<span class="vtag">TEAM</span>':''}</div>
+        <div class="chat-name">${esc(c.name)} ${c.verified?'<span class="vtag">TEAM</span>':''}${c.idChanged?'<span class="vtag" style="color:var(--ember);border-color:rgba(228,87,63,.45)">ID CHANGED</span>':''}</div>
         <div class="chat-last">${esc(lastMsgPreview(ch.msgs))}</div>
       </div>
       <div class="chat-side">
