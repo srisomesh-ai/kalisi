@@ -330,7 +330,7 @@ function sendPush(PDO $pdo, string $toKal, string $title, string $body): void {
       $msg = ['message'=>[
         'token'=>$t,
         'notification'=>['title'=>$title,'body'=>$body],
-        'android'=>['priority'=>'high','notification'=>['sound'=>'default','channel_id'=>'kalisi_messages']],
+        'android'=>['priority'=>'high','notification'=>['sound'=>'default','channel_id'=>'kalisi_messages_v2']],
         'data'=>['type'=>'message']
       ]];
       $ch = curl_init($url);
