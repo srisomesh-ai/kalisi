@@ -90,17 +90,24 @@ function register(PDO $pdo, array $in): void {
 function lookup(PDO $pdo, array $in): void {
   $h = trim((string)($in['handle'] ?? ($in['kal_id'] ?? '')));
   if (preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/i', $h)) {
-    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey, avatar FROM k_users WHERE kal_id = ?');
+    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey FROM k_users WHERE kal_id = ?');
     $st->execute([strtoupper($h)]);
   } else {
     $u = strtolower(trim($h, " @"));
     if (!preg_match('/^[a-z0-9_]{3,20}$/', $u)) out(false, ['error' => 'bad_id']);
-    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey, avatar FROM k_users WHERE username = ?');
+    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey FROM k_users WHERE username = ?');
     $st->execute([$u]);
   }
   $u = $st->fetch();
   if (!$u) out(false, ['error' => 'not_found']);
-  out(true, ['user' => ['kal_id' => $u['kal_id'], 'username' => $u['username'], 'name' => $u['name'], 'pubkey' => json_decode($u['pubkey'], true)]]);
+  $avatar = null;
+  try {
+    $av = $pdo->prepare('SELECT avatar FROM k_users WHERE kal_id = ?');
+    $av->execute([$u['kal_id']]);
+    $val = $av->fetchColumn();
+    if ($val) $avatar = $val;
+  } catch (Throwable $e) { /* column not created yet — ignore */ }
+  out(true, ['user' => ['kal_id' => $u['kal_id'], 'username' => $u['username'], 'name' => $u['name'], 'pubkey' => json_decode($u['pubkey'], true), 'avatar' => $avatar]]);
 }
 
 function send(PDO $pdo, array $in): void {
