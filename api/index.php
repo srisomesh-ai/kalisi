@@ -32,6 +32,7 @@ try {
     case 'check':     checkUsername($pdo, $in); break;
     case 'change_username': changeUsername($pdo, $in); break;
     case 'profile_update': profileUpdate($pdo, $in); break;
+    case 'contacts_profiles': contactsProfiles($pdo, $in); break;
     case 'block':     blockUser($pdo, $in); break;
     case 'unblock':   unblockUser($pdo, $in); break;
     case 'status_post':   statusPost($pdo, $in); break;
@@ -164,6 +165,29 @@ function fetchMsgs(PDO $pdo, array $in): void {
 
   $pdo->prepare('UPDATE k_users SET last_seen = NOW() WHERE kal_id = ?')->execute([$me['kal_id']]);
   out(true, $out);
+}
+
+function contactsProfiles(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $ids = $in['ids'] ?? [];
+  if (!is_array($ids)) $ids = [];
+  $ids = array_values(array_filter($ids,
+      fn($x) => preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', (string)$x)));
+  if (!$ids) out(true, ['users' => []]);
+  $ids = array_slice($ids, 0, 200);
+  $ph = implode(',', array_fill(0, count($ids), '?'));
+  $rows = [];
+  try {
+    $st = $pdo->prepare("SELECT kal_id, username, name, avatar FROM k_users WHERE kal_id IN ($ph)");
+    $st->execute($ids);
+    $rows = $st->fetchAll();
+  } catch (Throwable $e) {
+    // avatar column not created yet — fall back without it
+    $st = $pdo->prepare("SELECT kal_id, username, name FROM k_users WHERE kal_id IN ($ph)");
+    $st->execute($ids);
+    $rows = $st->fetchAll();
+  }
+  out(true, ['users' => $rows]);
 }
 
 function profileUpdate(PDO $pdo, array $in): void {
