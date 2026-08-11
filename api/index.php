@@ -31,6 +31,7 @@ try {
     case 'fetch':     fetchMsgs($pdo, $in); break;
     case 'check':     checkUsername($pdo, $in); break;
     case 'change_username': changeUsername($pdo, $in); break;
+    case 'profile_update': profileUpdate($pdo, $in); break;
     case 'block':     blockUser($pdo, $in); break;
     case 'unblock':   unblockUser($pdo, $in); break;
     case 'status_post':   statusPost($pdo, $in); break;
@@ -89,12 +90,12 @@ function register(PDO $pdo, array $in): void {
 function lookup(PDO $pdo, array $in): void {
   $h = trim((string)($in['handle'] ?? ($in['kal_id'] ?? '')));
   if (preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/i', $h)) {
-    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey FROM k_users WHERE kal_id = ?');
+    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey, avatar FROM k_users WHERE kal_id = ?');
     $st->execute([strtoupper($h)]);
   } else {
     $u = strtolower(trim($h, " @"));
     if (!preg_match('/^[a-z0-9_]{3,20}$/', $u)) out(false, ['error' => 'bad_id']);
-    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey FROM k_users WHERE username = ?');
+    $st = $pdo->prepare('SELECT kal_id, username, name, pubkey, avatar FROM k_users WHERE username = ?');
     $st->execute([$u]);
   }
   $u = $st->fetch();
@@ -156,6 +157,31 @@ function fetchMsgs(PDO $pdo, array $in): void {
 
   $pdo->prepare('UPDATE k_users SET last_seen = NOW() WHERE kal_id = ?')->execute([$me['kal_id']]);
   out(true, $out);
+}
+
+function profileUpdate(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  // make sure the columns exist (safe to run repeatedly)
+  try { $pdo->exec("ALTER TABLE k_users ADD COLUMN avatar MEDIUMTEXT NULL"); } catch (Throwable $e) {}
+
+  $sets = []; $args = [];
+  if (isset($in['name'])) {
+    $name = trim((string)$in['name']);
+    if ($name === '' || mb_strlen($name) > 40) out(false, ['error' => 'bad_name']);
+    $sets[] = 'name = ?'; $args[] = $name;
+  }
+  if (isset($in['avatar'])) {
+    $av = (string)$in['avatar'];
+    // '' clears the picture; otherwise cap the size
+    if ($av !== '' && strlen($av) > 250000) out(false, ['error' => 'avatar_too_big']);
+    $sets[] = 'avatar = ?'; $args[] = ($av === '' ? null : $av);
+  }
+  if (!$sets) out(false, ['error' => 'nothing_to_update']);
+
+  $args[] = $me['kal_id'];
+  $pdo->prepare('UPDATE k_users SET ' . implode(', ', $sets) . ' WHERE kal_id = ?')
+      ->execute($args);
+  out(true, ['updated' => true]);
 }
 
 function changeUsername(PDO $pdo, array $in): void {
