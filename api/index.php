@@ -517,6 +517,74 @@ function groupCreate(PDO $pdo, array $in): void {
       ->execute([$gid, $name, $me['kal_id'], json_encode($members)]);
   out(true, ['gid' => $gid, 'name' => $name, 'members' => $members]);
 }
+/* Add/remove members, rename, or leave a group.
+   Only the owner may add, remove or rename; anyone may leave. */
+function groupUpdate(PDO $pdo, array $in): void {
+  $me  = auth($pdo, $in);
+  $gid = (string)($in['gid'] ?? '');
+  $act = (string)($in['act'] ?? '');
+
+  $st = $pdo->prepare('SELECT * FROM k_groups WHERE gid = ?');
+  $st->execute([$gid]);
+  $g = $st->fetch();
+  if (!$g) out(false, ['error' => 'group_not_found']);
+
+  $members = json_decode($g['members'], true);
+  if (!is_array($members)) $members = [];
+  if (!in_array($me['kal_id'], $members, true)) out(false, ['error' => 'not_a_member']);
+
+  $isOwner = ($g['owner'] === $me['kal_id']);
+
+  if ($act === 'leave') {
+    $members = array_values(array_filter($members, fn($m) => $m !== $me['kal_id']));
+    if (!$members) {
+      $pdo->prepare('DELETE FROM k_groups WHERE gid = ?')->execute([$gid]);
+      out(true, ['left' => true, 'deleted' => true]);
+    }
+    // hand ownership on if the owner leaves
+    $owner = $isOwner ? $members[0] : $g['owner'];
+    $pdo->prepare('UPDATE k_groups SET members = ?, owner = ? WHERE gid = ?')
+        ->execute([json_encode($members), $owner, $gid]);
+    out(true, ['left' => true, 'members' => $members]);
+  }
+
+  if (!$isOwner) out(false, ['error' => 'owner_only']);
+
+  if ($act === 'rename') {
+    $name = trim((string)($in['name'] ?? ''));
+    if ($name === '' || mb_strlen($name) > 60) out(false, ['error' => 'bad_name']);
+    $pdo->prepare('UPDATE k_groups SET name = ? WHERE gid = ?')->execute([$name, $gid]);
+    out(true, ['renamed' => true, 'name' => $name]);
+  }
+
+  if ($act === 'add') {
+    $add = $in['members'] ?? [];
+    if (!is_array($add)) $add = [];
+    foreach ($add as $m) {
+      $m = (string)$m;
+      if (preg_match('/^KAL-[A-Z2-9]{4}-[A-Z2-9]{4}$/', $m)
+          && !in_array($m, $members, true)) {
+        $members[] = $m;
+      }
+    }
+    if (count($members) > 256) out(false, ['error' => 'group_full']);
+    $pdo->prepare('UPDATE k_groups SET members = ? WHERE gid = ?')
+        ->execute([json_encode($members), $gid]);
+    out(true, ['members' => $members]);
+  }
+
+  if ($act === 'remove') {
+    $drop = (string)($in['member'] ?? '');
+    if ($drop === $g['owner']) out(false, ['error' => 'cannot_remove_owner']);
+    $members = array_values(array_filter($members, fn($m) => $m !== $drop));
+    $pdo->prepare('UPDATE k_groups SET members = ? WHERE gid = ?')
+        ->execute([json_encode($members), $gid]);
+    out(true, ['members' => $members]);
+  }
+
+  out(false, ['error' => 'bad_act']);
+}
+
 function groupInfo(PDO $pdo, array $in): void {
   $me = auth($pdo, $in);
   $gid = (string)($in['gid'] ?? '');
