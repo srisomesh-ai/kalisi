@@ -318,14 +318,17 @@ function fcmRegister(PDO $pdo, array $in): void {
 /* Send an FCM push to a recipient (best-effort; silent on failure).
    Requires FCM_PROJECT_ID + a service-account JSON in config.local.php (FCM_SA_JSON). */
 function sendPush(PDO $pdo, string $toKal, string $title, string $body): void {
-  if (!defined('FCM_PROJECT_ID') || !defined('FCM_SA_JSON')) return;
+  $sa = fcmServiceAccount();
+  if (!$sa) return;
   try {
     $st = $pdo->prepare("SELECT token FROM k_fcm WHERE kal_id=?"); $st->execute([$toKal]);
     $tokens = array_column($st->fetchAll(), 'token');
     if (!$tokens) return;
     $access = fcmAccessToken();
     if (!$access) return;
-    $url = 'https://fcm.googleapis.com/v1/projects/'.FCM_PROJECT_ID.'/messages:send';
+    $project = defined('FCM_PROJECT_ID') ? FCM_PROJECT_ID : ($sa['project_id'] ?? '');
+    if ($project === '') return;
+    $url = 'https://fcm.googleapis.com/v1/projects/'.$project.'/messages:send';
     foreach ($tokens as $t) {
       $msg = ['message'=>[
         'token'=>$t,
@@ -341,9 +344,35 @@ function sendPush(PDO $pdo, string $toKal, string $title, string $body): void {
     }
   } catch (Throwable $e) {}
 }
+/* Load the Firebase service account, from api/fcm-key.json if it's there,
+   otherwise from an FCM_SA_JSON constant. Returns null when neither exists,
+   which simply leaves push disabled. */
+function fcmServiceAccount(): ?array {
+  static $cached = false, $value = null;
+  if ($cached) return $value;
+  $cached = true;
+
+  $path = __DIR__ . '/fcm-key.json';
+  if (is_readable($path)) {
+    $j = json_decode((string)file_get_contents($path), true);
+    if ($j && !empty($j['client_email']) && !empty($j['private_key'])) {
+      $value = $j;
+      return $value;
+    }
+  }
+  if (defined('FCM_SA_JSON')) {
+    $j = json_decode(FCM_SA_JSON, true);
+    if ($j && !empty($j['client_email']) && !empty($j['private_key'])) {
+      $value = $j;
+      return $value;
+    }
+  }
+  return null;
+}
+
 function fcmAccessToken(): ?string {
-  $sa = json_decode(FCM_SA_JSON, true);
-  if (!$sa || empty($sa['client_email']) || empty($sa['private_key'])) return null;
+  $sa = fcmServiceAccount();
+  if (!$sa) return null;
   $now = time();
   $header = rtrim(strtr(base64_encode(json_encode(['alg'=>'RS256','typ'=>'JWT'])), '+/', '-_'), '=');
   $claim = rtrim(strtr(base64_encode(json_encode([
