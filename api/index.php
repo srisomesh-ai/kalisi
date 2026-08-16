@@ -133,7 +133,7 @@ function send(PDO $pdo, array $in): void {
   $sname = '';
   $us = $pdo->prepare('SELECT username FROM k_users WHERE kal_id=?'); $us->execute([$me['kal_id']]);
   $u = $us->fetch(); $sname = $u && $u['username'] ? '@'.$u['username'] : 'Someone';
-  sendPush($pdo, $to, 'Kalisi', $sname.' sent you a message');
+  sendPush($pdo, $to, 'Kalisi', $sname.' sent you a message', $me['kal_id']);
   out(true, ['queued' => true]);
 }
 
@@ -317,7 +317,7 @@ function fcmRegister(PDO $pdo, array $in): void {
 
 /* Send an FCM push to a recipient (best-effort; silent on failure).
    Requires FCM_PROJECT_ID + a service-account JSON in config.local.php (FCM_SA_JSON). */
-function sendPush(PDO $pdo, string $toKal, string $title, string $body): void {
+function sendPush(PDO $pdo, string $toKal, string $title, string $body, string $fromKal = ''): void {
   $sa = fcmServiceAccount();
   if (!$sa) return;
   try {
@@ -334,7 +334,7 @@ function sendPush(PDO $pdo, string $toKal, string $title, string $body): void {
         'token'=>$t,
         'notification'=>['title'=>$title,'body'=>$body],
         'android'=>['priority'=>'high','notification'=>['sound'=>'default','channel_id'=>'kalisi_messages_v2']],
-        'data'=>['type'=>'message']
+        'data'=>['type'=>'message','from'=>$fromKal]
       ]];
       $ch = curl_init($url);
       curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>4,
