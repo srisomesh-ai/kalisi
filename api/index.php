@@ -31,6 +31,8 @@ try {
     case 'fetch':     fetchMsgs($pdo, $in); break;
     case 'check':     checkUsername($pdo, $in); break;
     case 'change_username': changeUsername($pdo, $in); break;
+    case 'recover_salt':  recoverSalt($pdo, $in); break;
+    case 'recover_login': recoverLogin($pdo, $in); break;
     case 'profile_update': profileUpdate($pdo, $in); break;
     case 'contacts_profiles': contactsProfiles($pdo, $in); break;
     case 'block':     blockUser($pdo, $in); break;
@@ -76,12 +78,32 @@ function register(PDO $pdo, array $in): void {
     }
   }
   unset($pubkey['d']); // never accept private material
+
+  // Optional account recovery. The app derives its key from the password, so
+  // we only ever store a hash to check against — never the password, never
+  // anything that could decrypt a message.
+  $verifier = (string)($in['verifier'] ?? '');
+  $salt     = (string)($in['salt'] ?? '');
+  if ($verifier !== '') {
+    if (strlen($verifier) > 128 || strlen($salt) > 128) {
+      out(false, ['error' => 'bad_input']);
+    }
+    try { $pdo->exec("ALTER TABLE k_users ADD COLUMN verifier VARCHAR(160) NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE k_users ADD COLUMN salt VARCHAR(160) NULL"); } catch (Throwable $e) {}
+  }
+
   $token = bin2hex(random_bytes(24));
   for ($i = 0; $i < 8; $i++) {
     $kid = kalId();
     try {
-      $st = $pdo->prepare('INSERT INTO k_users (kal_id, username, name, pubkey, token, created_at, last_seen) VALUES (?,?,?,?,?,NOW(),NOW())');
-      $st->execute([$kid, $username, $name, json_encode($pubkey), $token]);
+      if ($verifier !== '') {
+        $st = $pdo->prepare('INSERT INTO k_users (kal_id, username, name, pubkey, token, verifier, salt, created_at, last_seen) VALUES (?,?,?,?,?,?,?,NOW(),NOW())');
+        $st->execute([$kid, $username, $name, json_encode($pubkey), $token,
+                      password_hash($verifier, PASSWORD_DEFAULT), $salt]);
+      } else {
+        $st = $pdo->prepare('INSERT INTO k_users (kal_id, username, name, pubkey, token, created_at, last_seen) VALUES (?,?,?,?,?,NOW(),NOW())');
+        $st->execute([$kid, $username, $name, json_encode($pubkey), $token]);
+      }
       out(true, ['kal_id' => $kid, 'username' => $username, 'token' => $token]);
     } catch (PDOException $e) { /* duplicate id, retry */ }
   }
@@ -213,6 +235,55 @@ function profileUpdate(PDO $pdo, array $in): void {
   $pdo->prepare('UPDATE k_users SET ' . implode(', ', $sets) . ' WHERE kal_id = ?')
       ->execute($args);
   out(true, ['updated' => true]);
+}
+
+/* Step 1 of signing in on a new phone: hand back the salt for a username so
+   the app can derive the same key from the password. Returns nothing useful
+   to an attacker — the salt alone can't unlock anything. */
+function recoverSalt(PDO $pdo, array $in): void {
+  $u = strtolower(trim((string)($in['username'] ?? ''), " @"));
+  if (!preg_match('/^[a-z0-9_]{3,20}$/', $u)) out(false, ['error' => 'bad_username']);
+  try {
+    $st = $pdo->prepare('SELECT salt, verifier FROM k_users WHERE username = ?');
+    $st->execute([$u]);
+    $r = $st->fetch();
+    if (!$r || empty($r['verifier'])) out(false, ['error' => 'no_recovery']);
+    out(true, ['salt' => (string)$r['salt']]);
+  } catch (Throwable $e) {
+    out(false, ['error' => 'no_recovery']);
+  }
+}
+
+/* Step 2: check the verifier the app derived from the password. On success
+   the account is handed back — same KAL-ID, same username, a fresh token.
+   The public key is replaced, since the app rebuilt the key pair. */
+function recoverLogin(PDO $pdo, array $in): void {
+  $u = strtolower(trim((string)($in['username'] ?? ''), " @"));
+  $verifier = (string)($in['verifier'] ?? '');
+  $pubkey = $in['pubkey'] ?? null;
+  if (!preg_match('/^[a-z0-9_]{3,20}$/', $u) || $verifier === '' || !is_array($pubkey)) {
+    out(false, ['error' => 'bad_input']);
+  }
+  $st = $pdo->prepare('SELECT kal_id, name, verifier FROM k_users WHERE username = ?');
+  $st->execute([$u]);
+  $r = $st->fetch();
+  if (!$r || empty($r['verifier'])) out(false, ['error' => 'no_recovery']);
+
+  // slow down guessing
+  usleep(300000);
+  if (!password_verify($verifier, $r['verifier'])) out(false, ['error' => 'wrong_password']);
+
+  unset($pubkey['d']);
+  $token = bin2hex(random_bytes(24));
+  $pdo->prepare('UPDATE k_users SET pubkey = ?, token = ?, last_seen = NOW() WHERE kal_id = ?')
+      ->execute([json_encode($pubkey), $token, $r['kal_id']]);
+
+  out(true, [
+    'kal_id'   => $r['kal_id'],
+    'username' => $u,
+    'name'     => $r['name'],
+    'token'    => $token,
+  ]);
 }
 
 function changeUsername(PDO $pdo, array $in): void {
