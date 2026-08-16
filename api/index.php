@@ -422,6 +422,16 @@ function statusViewers(PDO $pdo, array $in): void {
 function statusDelete(PDO $pdo, array $in): void {
   $me = auth($pdo, $in);
   $sid = (int)($in['status_id'] ?? 0);
+  // remove the stored file too, if this status had one
+  try {
+    $q = $pdo->prepare("SELECT payload FROM k_status WHERE id=? AND kal_id=?");
+    $q->execute([$sid, $me['kal_id']]);
+    $p = (string)($q->fetchColumn() ?: '');
+    if (str_starts_with($p, 'file:')) {
+      $path = __DIR__ . '/media/status/' . basename($p);
+      if (is_file($path)) @unlink($path);
+    }
+  } catch (Throwable $e) {}
   $pdo->prepare("DELETE FROM k_status WHERE id=? AND kal_id=?")->execute([$sid, $me['kal_id']]);
   $pdo->prepare("DELETE FROM k_status_views WHERE status_id=?")->execute([$sid]);
   out(true, ['deleted'=>$sid]);
@@ -471,17 +481,72 @@ function unblockUser(PDO $pdo, array $in): void {
 
 function statusPost(PDO $pdo, array $in): void {
   $me = auth($pdo, $in);
-  $type = in_array(($in['type'] ?? ''), ['text','photo','voice']) ? $in['type'] : 'text';
-  $payload = (string)($in['payload'] ?? '');   // encrypted or plain small blob; capped
-  if ($payload === '' || strlen($payload) > 1500000) out(false, ['error' => 'bad_input']);
+  $type = in_array(($in['type'] ?? ''), ['text','photo','voice','video'])
+      ? $in['type'] : 'text';
+  $payload = (string)($in['payload'] ?? '');
+  if ($payload === '') out(false, ['error' => 'bad_input']);
+
+  // Video (and anything large) is written to disk and only its URL is stored,
+  // so the row stays small and the 1.5MB inline limit doesn't apply.
+  $limit = ($type === 'video') ? 26000000 : 1500000;   // ~26MB of base64 ≈ 19MB
+  if (strlen($payload) > $limit) out(false, ['error' => 'too_large']);
+
+  if ($type === 'video' || strlen($payload) > 900000) {
+    $stored = storeStatusFile($payload, $type);
+    if ($stored === null) out(false, ['error' => 'store_failed']);
+    $payload = $stored;   // 'file:<url>'
+  }
   $allowShare = !empty($in['allow_share']) ? 1 : 0;
   try { $pdo->exec("ALTER TABLE k_status ADD COLUMN allow_share TINYINT NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
   $pdo->prepare('INSERT INTO k_status (kal_id, type, payload, allow_share, created_at) VALUES (?,?,?,?,NOW())')
       ->execute([$me['kal_id'], $type, $payload, $allowShare]);
-  // keep only last 24h per user
+  // keep only last 24h per user, removing any stored files first
+  pruneStatusFiles($pdo);
   $pdo->prepare('DELETE FROM k_status WHERE created_at < (NOW() - INTERVAL 24 HOUR)')->execute();
   out(true, ['posted' => true]);
 }
+/* Write a base64 data URL to disk under api/media/status and return
+   'file:<absolute url>'. Returns null if it can't be written. */
+function storeStatusFile(string $dataUrl, string $type): ?string {
+  $dir = __DIR__ . '/media/status';
+  if (!is_dir($dir) && !@mkdir($dir, 0755, true)) return null;
+
+  $comma = strpos($dataUrl, ',');
+  $meta  = $comma === false ? '' : substr($dataUrl, 0, $comma);
+  $b64   = $comma === false ? $dataUrl : substr($dataUrl, $comma + 1);
+  $bytes = base64_decode($b64, true);
+  if ($bytes === false || strlen($bytes) < 32) return null;
+
+  $ext = 'bin';
+  if (stripos($meta, 'mp4') !== false)       $ext = 'mp4';
+  elseif (stripos($meta, 'webm') !== false)  $ext = 'webm';
+  elseif (stripos($meta, 'jpeg') !== false || stripos($meta, 'jpg') !== false) $ext = 'jpg';
+  elseif (stripos($meta, 'png') !== false)   $ext = 'png';
+  elseif (stripos($meta, 'audio') !== false) $ext = 'm4a';
+
+  $name = bin2hex(random_bytes(12)) . '.' . $ext;
+  if (@file_put_contents($dir . '/' . $name, $bytes) === false) return null;
+
+  $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+  $host   = $_SERVER['HTTP_HOST'] ?? 'kalisi.app';
+  $base   = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/api/index.php'), '/');
+  return 'file:' . $scheme . '://' . $host . $base . '/media/status/' . $name;
+}
+
+/* Delete stored files for statuses that have expired. */
+function pruneStatusFiles(PDO $pdo): void {
+  try {
+    $st = $pdo->query("SELECT payload FROM k_status
+                       WHERE created_at < (NOW() - INTERVAL 24 HOUR)
+                         AND payload LIKE 'file:%'");
+    foreach ($st->fetchAll() as $r) {
+      $name = basename((string)$r['payload']);
+      $path = __DIR__ . '/media/status/' . $name;
+      if ($name !== '' && is_file($path)) @unlink($path);
+    }
+  } catch (Throwable $e) {}
+}
+
 function statusFeed(PDO $pdo, array $in): void {
   $me = auth($pdo, $in);
   $ids = $in['contacts'] ?? [];   // list of KAL-IDs the user follows (their contacts)

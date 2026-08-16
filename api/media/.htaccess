@@ -1,0 +1,6 @@
+# Serve media, but never list directories or execute anything here.
+Options -Indexes -ExecCGI
+AddType application/octet-stream .php
+<FilesMatch "\.(php|phtml|phar)$">
+  Require all denied
+</FilesMatch>
