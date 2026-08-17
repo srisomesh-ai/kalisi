@@ -42,6 +42,7 @@ try {
     case 'group_create':  groupCreate($pdo, $in); break;
     case 'group_send':    groupSend($pdo, $in); break;
     case 'group_info':    groupInfo($pdo, $in); break;
+    case 'group_update':  groupUpdate($pdo, $in); break;
     case 'req_send':      reqSend($pdo, $in); break;
     case 'req_list':      reqList($pdo, $in); break;
     case 'req_act':       reqAct($pdo, $in); break;
