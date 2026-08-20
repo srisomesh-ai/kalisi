@@ -118,6 +118,71 @@ try {
     echo "[FAIL] Database problem: " . $e->getMessage() . "\n";
 }
 
-echo "\nIf every line above says ok, push is configured correctly and any\n";
-echo "remaining problem is on the phone — usually battery optimisation\n";
-echo "killing the app, or notifications turned off for Kalisi.\n";
+// 4. actually send one, and show exactly what FCM says
+$target = isset($_GET['to']) ? strtoupper(trim((string)$_GET['to'])) : '';
+if ($target === '') {
+    echo "\nTo send a real test notification, add ?to=KAL-XXXX-XXXX to this\n";
+    echo "page's address, using the id of the phone you want to ring.\n";
+    exit;
+}
+
+echo "\nSENDING A TEST TO $target\n";
+echo "----------------------------------------\n";
+
+try {
+    $st = $pdo->prepare("SELECT token, updated_at FROM k_fcm WHERE kal_id=? ORDER BY updated_at DESC");
+    $st->execute([$target]);
+    $rows = $st->fetchAll();
+} catch (Throwable $e) {
+    echo "[FAIL] " . $e->getMessage() . "\n";
+    exit;
+}
+
+if (!$rows) {
+    echo "[FAIL] That id has no registered device.\n";
+    echo "       Open the app on that phone once, then try again.\n";
+    exit;
+}
+
+echo count($rows) . " token(s) on file for this id.\n\n";
+
+$project = $sa['project_id'] ?? '';
+$url = 'https://fcm.googleapis.com/v1/projects/' . $project . '/messages:send';
+
+foreach ($rows as $i => $r) {
+    $msg = ['message' => [
+        'token' => $r['token'],
+        'notification' => ['title' => 'Kalisi', 'body' => 'Test notification'],
+        'android' => [
+            'priority' => 'high',
+            'notification' => ['sound' => 'default', 'channel_id' => 'kalisi_messages_v2'],
+        ],
+        'data' => ['type' => 'message', 'from' => $target],
+    ]];
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token, 'Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode($msg),
+    ]);
+    $res  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $n = $i + 1;
+    echo "token #$n (registered " . $r['updated_at'] . ")\n";
+    if ($code === 200) {
+        echo "  [ok]   FCM accepted it. If the phone stayed silent, the phone\n";
+        echo "         is dropping it — battery optimisation or notifications off.\n";
+    } else {
+        echo "  [FAIL] HTTP $code\n";
+        echo "         " . substr((string)$res, 0, 260) . "\n";
+        if ($code === 404) {
+            echo "         This token is dead — that phone reinstalled or cleared data.\n";
+        }
+    }
+    echo "\n";
+}
+
+echo "If a token was accepted but nothing arrived, the phone is the cause.\n";
+echo "If every token failed, the message above says why.\n";
