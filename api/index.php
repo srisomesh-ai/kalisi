@@ -55,6 +55,8 @@ try {
     case 'status_react':   statusReact($pdo, $in); break;
     case 'status_reactions': statusReactions($pdo, $in); break;
     case 'ping':      out(true, ['pong' => time()]); break;
+    case 'push_check': pushCheck($pdo, $in); break;
+    case 'push_test':  pushTest($pdo, $in); break;
     default:          out(false, ['error' => 'unknown_action']);
   }
 } catch (Throwable $e) {
@@ -398,18 +400,67 @@ function fcmRegister(PDO $pdo, array $in): void {
 
 /* Send an FCM push to a recipient (best-effort; silent on failure).
    Requires FCM_PROJECT_ID + a service-account JSON in config.local.php (FCM_SA_JSON). */
-function sendPush(PDO $pdo, string $toKal, string $title, string $body, string $fromKal = '', string $type = 'message'): void {
+/* Why isn't push working? Reports each step without exposing the key. */
+function pushCheck(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $r = [];
+
+  $keyPath = __DIR__ . '/fcm-key.json';
+  $r['key_file_present']  = is_readable($keyPath);
+  $r['key_file_path']     = $keyPath;
   $sa = fcmServiceAccount();
-  if (!$sa) return;
+  $r['key_file_valid']    = (bool)$sa;
+  $r['project_id']        = $sa['project_id'] ?? null;
+  $r['client_email_tail'] = isset($sa['client_email'])
+      ? substr($sa['client_email'], -28) : null;
+
+  try {
+    $st = $pdo->prepare("SELECT token, updated_at FROM k_fcm WHERE kal_id=?");
+    $st->execute([$me['kal_id']]);
+    $rows = $st->fetchAll();
+    $r['devices_registered'] = count($rows);
+    $r['token_updated']      = $rows[0]['updated_at'] ?? null;
+    $r['token_tail']         = isset($rows[0]['token'])
+        ? substr($rows[0]['token'], -12) : null;
+  } catch (Throwable $e) {
+    $r['devices_registered'] = 0;
+    $r['fcm_table_error']    = $e->getMessage();
+  }
+
+  if ($sa) {
+    $tok = fcmAccessToken();
+    $r['google_auth_ok'] = (bool)$tok;
+    if (!$tok) $r['google_auth_hint'] =
+        'Could not get a token from Google — check the key and the server clock';
+  }
+
+  $r['ready'] = ($r['key_file_valid'] ?? false)
+      && ($r['devices_registered'] ?? 0) > 0
+      && ($r['google_auth_ok'] ?? false);
+  out(true, $r);
+}
+
+/* Send a push to yourself and report what FCM said. */
+function pushTest(PDO $pdo, array $in): void {
+  $me = auth($pdo, $in);
+  $result = sendPush($pdo, $me['kal_id'], 'Kalisi', 'Test notification',
+                     $me['kal_id'], 'message', true);
+  out(true, ['sent' => $result]);
+}
+
+function sendPush(PDO $pdo, string $toKal, string $title, string $body, string $fromKal = '', string $type = 'message', bool $report = false) {
+  $sa = fcmServiceAccount();
+  if (!$sa) return $report ? ['ok'=>false,'why'=>'no_key_file'] : null;
   try {
     $st = $pdo->prepare("SELECT token FROM k_fcm WHERE kal_id=?"); $st->execute([$toKal]);
     $tokens = array_column($st->fetchAll(), 'token');
-    if (!$tokens) return;
+    if (!$tokens) return $report ? ['ok'=>false,'why'=>'no_device_registered'] : null;
     $access = fcmAccessToken();
-    if (!$access) return;
+    if (!$access) return $report ? ['ok'=>false,'why'=>'google_auth_failed'] : null;
     $project = defined('FCM_PROJECT_ID') ? FCM_PROJECT_ID : ($sa['project_id'] ?? '');
-    if ($project === '') return;
+    if ($project === '') return $report ? ['ok'=>false,'why'=>'no_project_id'] : null;
     $url = 'https://fcm.googleapis.com/v1/projects/'.$project.'/messages:send';
+    $results = [];
     foreach ($tokens as $t) {
       $msg = ['message'=>[
         'token'=>$t,
@@ -425,12 +476,32 @@ function sendPush(PDO $pdo, string $toKal, string $title, string $body, string $
         'data'=>['type'=>$type,'from'=>$fromKal,'click_action'=>'FLUTTER_NOTIFICATION_CLICK']
       ]];
       $ch = curl_init($url);
-      curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>4,
+      curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>6,
         CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$access,'Content-Type: application/json'],
         CURLOPT_POSTFIELDS=>json_encode($msg)]);
-      curl_exec($ch); curl_close($ch);
+      $body = curl_exec($ch);
+      $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      $err  = curl_error($ch);
+      curl_close($ch);
+
+      // A token that FCM has retired will fail forever — drop it so the
+      // device re-registers on next launch.
+      if ($code === 404 || $code === 400) {
+        try {
+          $pdo->prepare("DELETE FROM k_fcm WHERE token=?")->execute([$t]);
+        } catch (Throwable $e) {}
+      }
+      $results[] = ['http'=>$code, 'error'=>$err ?: null,
+                    'body'=>$code >= 300 ? substr((string)$body, 0, 300) : null];
     }
-  } catch (Throwable $e) {}
+    if ($report) {
+      return ['ok' => !empty($results) && ($results[0]['http'] ?? 0) === 200,
+              'attempts' => $results];
+    }
+  } catch (Throwable $e) {
+    if ($report) return ['ok'=>false,'why'=>'exception','detail'=>$e->getMessage()];
+  }
+  return $report ? ['ok'=>false,'why'=>'no_attempts'] : null;
 }
 /* Load the Firebase service account, from api/fcm-key.json if it's there,
    otherwise from an FCM_SA_JSON constant. Returns null when neither exists,
