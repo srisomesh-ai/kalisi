@@ -473,7 +473,7 @@ function sendPush(PDO $pdo, string $toKal, string $title, string $body, string $
             'channel_id'=> ($type === 'call' ? 'kalisi_calls' : 'kalisi_messages_v2'),
           ],
         ],
-        'data'=>['type'=>$type,'from'=>$fromKal,'click_action'=>'FLUTTER_NOTIFICATION_CLICK']
+        'data'=>['type'=>$type,'sender'=>$fromKal,'click_action'=>'FLUTTER_NOTIFICATION_CLICK']
       ]];
       $ch = curl_init($url);
       curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>6,
@@ -484,9 +484,11 @@ function sendPush(PDO $pdo, string $toKal, string $title, string $body, string $
       $err  = curl_error($ch);
       curl_close($ch);
 
-      // A token that FCM has retired will fail forever — drop it so the
-      // device re-registers on next launch.
-      if ($code === 404 || $code === 400) {
+      // Only 404 (UNREGISTERED) means the token itself is dead. A 400 means
+      // the payload was malformed — deleting the token then just unregisters
+      // healthy devices, which is exactly what happened with the reserved
+      // 'from' key.
+      if ($code === 404) {
         try {
           $pdo->prepare("DELETE FROM k_fcm WHERE token=?")->execute([$t]);
         } catch (Throwable $e) {}

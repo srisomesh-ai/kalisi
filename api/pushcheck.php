@@ -157,7 +157,7 @@ foreach ($rows as $i => $r) {
             'priority' => 'high',
             'notification' => ['sound' => 'default', 'channel_id' => 'kalisi_messages_v2'],
         ],
-        'data' => ['type' => 'message', 'from' => $target],
+        'data' => ['type' => 'message', 'sender' => $target],
     ]];
     $ch = curl_init($url);
     curl_setopt_array($ch, [
